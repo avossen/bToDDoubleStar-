@@ -361,7 +361,6 @@ namespace Belle {
   // event function
   void bToDDoubleStar::event(BelleEvent* evptr, int* status)
   {
-
     //for the output of the decay signature query
     sig_FoundDDoubleStar=false;
     sig_numLeptons=0;
@@ -478,6 +477,8 @@ namespace Belle {
       {
 	//		cout <<" got B and the dpipi" << endl;
       }
+
+
     //first bind best B meson and decay products
     for(std::vector<Ekpfullrecon>::iterator it=ekpfullrecon_m.begin();it!=ekpfullrecon_m.end();it++)
       {
@@ -1502,11 +1503,17 @@ namespace Belle {
     treeData.recDecaySignature=foundRecDecay;
     treeData.mcDecaySignature=mcDecaySignature;
     if(foundRecDecay)
-      saveTree();
-    if(mcDecaySignature&& !foundRecDecay)
       {
 	saveTree();
+	cout <<"indeed foundRec " <<endl;
       }
+    if(mcDecaySignature&& !foundRecDecay)
+      {
+		cout <<"mc decay but not foundRec " <<endl;
+	saveTree();
+      }
+    if(!mcDecaySignature && !foundRecDecay)
+      cout <<"haven't found anything " <<endl;
     exitEvent();
   }
 
@@ -3514,9 +3521,6 @@ namespace Belle {
   //this seems to have some impact...
   unsigned bToDDoubleStar::doKmVtxFit(Particle &p, double& confLevel, int debug)
   {
-
-
-
 
     //first get vertex:
     kvertexfitter vtxFit;
