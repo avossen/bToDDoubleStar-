@@ -921,7 +921,9 @@ namespace Belle {
 
 	//	if(abs((g1Energy-g2Energy)/(g1Energy+g2Energy))>cuts::maxPi0GAsym)
 	//	  continue;
-	if(g1Energy < 0.05 || g2Energy < 0.05)
+	//let's make this 100 MeV rather than 50 (see Charlotte's study)
+	if(g1Energy < 0.1 || g2Energy < 0.1)
+	//	if(g1Energy < 0.05 || g2Energy < 0.05)
 	  continue;
 	Particle* p=new Particle(pi0);
 	double confLevel;
@@ -3263,12 +3265,12 @@ namespace Belle {
     double m_DStar0=2.00697;
     double m_D0=1.86484;
     double m_DPlus=1.86962;
+    //Dmitry does not have max and min on DStar, just the difference (probably due to the uncertainty on the DStar)
+    double m_dStarPlusmass_max=m_DStarPlus+10.015;
+    double m_dStarPlusmass_min=m_DStarPlus-10.015;
 
-    double m_dStarPlusmass_max=m_DStarPlus+0.015;
-    double m_dStarPlusmass_min=m_DStarPlus-0.015;
-
-    double m_dStar0mass_max=m_DStar0+0.015;
-    double m_dStar0mass_min=m_DStar0-0.015;
+    double m_dStar0mass_max=m_DStar0+10.015;
+    double m_dStar0mass_min=m_DStar0-10.015;
 
     double max_massDifference=0.003;
 
