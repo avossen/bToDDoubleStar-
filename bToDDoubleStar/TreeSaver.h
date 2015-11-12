@@ -66,7 +66,6 @@ public:
     addFieldF("mBTag");
     addFieldF("logProb");
     addFieldF("tagCorr");
-
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
@@ -75,6 +74,19 @@ public:
     addFieldI("sig_numPi0");
     addFieldI("sig_numLeptons");
     addFieldI("sig_numBaryons");
+
+
+    addFieldI("sig_DLNu");
+    addFieldI("sig_DPiLNu");
+    addFieldI("sig_DPiPiLNu");
+
+    addFieldI("sig_DStarLNu");
+    addFieldI("sig_DStarPiLNu");
+    addFieldI("sig_DStarPiPiLNu");
+
+    addFieldF("tagOverlapFractionCharged");
+    addFieldF("tagOverlapFractionPi0");
+
     addFieldI("sig_dStar_2S");
     addFieldI("sig_d_2S");
     addFieldI("mcDecaySignature");
@@ -120,6 +132,8 @@ public:
     addArrayF("leptonPhi");
     addArrayF("pi1Phi");
     addArrayF("pi2Phi");
+
+
   }
 
 
@@ -144,11 +158,32 @@ public:
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
       (*(int*)treeData[index++])=data->foundAnyDDoubleStar;
+      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
       (*(int*)treeData[index++])=data->sig_numPions;
       (*(int*)treeData[index++])=data->sig_numKaons;
       (*(int*)treeData[index++])=data->sig_numPi0;
       (*(int*)treeData[index++])=data->sig_numLeptons;
       (*(int*)treeData[index++])=data->sig_numBaryons;
+
+      (*(int*)treeData[index++])=data->sigDLNu;
+      cout <<"dlnu : "<<data->sigDLNu <<endl;
+      cout <<"dPilnu : "<<data->sigDPiLNu <<endl;
+      cout <<"dPiPilnu : "<<data->sigDPiPiLNu <<endl;
+
+      cout <<"dStarlnu : "<<data->sigDStarLNu <<endl;
+      cout <<"dStarPilnu : "<<data->sigDStarPiLNu <<endl;
+      cout <<"dStarPiPilnu : "<<data->sigDStarPiPiLNu <<endl;
+      (*(int*)treeData[index++])=data->sigDPiLNu;
+      (*(int*)treeData[index++])=data->sigDPiPiLNu;
+
+      (*(int*)treeData[index++])=data->sigDStarLNu;
+      (*(int*)treeData[index++])=data->sigDStarPiLNu;
+      (*(int*)treeData[index++])=data->sigDStarPiPiLNu;
+
+      (*(float*)treeData[index++])=data->tagOverlapFractionCharged;
+      (*(float*)treeData[index++])=data->tagOverlapFractionPi0;
+
+
       (*(int*)treeData[index++])=data->sig_dStar_2S;
       (*(int*)treeData[index++])=data->sig_d_2S;
       (*(int*)treeData[index++])=data->mcDecaySignature;

@@ -32,9 +32,20 @@ class BTreeData
   int sig_numKaons;
   int sig_numBaryons;
   int sig_numPi0;
+  int sig_numD;
+  int sig_numDStar;
 
   int sig_dStar_2S;
   int sig_d_2S;
+
+  int sigDLNu;
+  int sigDPiLNu;
+  int sigDPiPiLNu;
+
+  int sigDStarLNu;
+  int sigDStarPiLNu;
+  int sigDStarPiPiLNu;
+
 
   //
 
@@ -48,12 +59,10 @@ class BTreeData
   int foundDMeson;
   int dPID;
 
+  float tagOverlapFractionCharged;
+  float tagOverlapFractionPi0;
   int foundDDoubleStarInMC;
-
-
   int daughterDPID;
-
-
 
   float mNu2[1000];
   float mB[1000];

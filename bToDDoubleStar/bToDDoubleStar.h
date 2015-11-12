@@ -50,7 +50,7 @@ public:
   // begin_run function
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
-  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons, bool& dStar_2S, bool& d_2S);
+  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
   void saveTree();
@@ -75,6 +75,17 @@ public:
   int zNums[4];
   double smpl_;
   char rFileName[200];
+
+
+  double bestBPx;
+  double bestBPy;
+  double bestBPz;
+
+  set<int> chargedIds;
+    set<int> pi0Ids;
+    set<int> gammaIds;
+
+    int getOverlap(set<int>& s1, set<int>& s2);
 
   bool recursivePrint(const Gen_hepevt gen_it, string s);
 
@@ -121,6 +132,21 @@ static int getBin(vector<float>& b1, float value)
   int sig_numLeptons;
   int sig_numPi0;
   int sig_numBaryons;
+  int sig_numD;
+  int sig_numDStar;
+
+  float overlapFractionCharged;
+  float overlapFractionPi0;
+
+  int sigDPiLNu;
+  int sigDPiPiLNu;
+  int sigDLNu;
+
+  int sigDStarPiLNu;
+  int sigDStarPiPiLNu;
+  int sigDStarLNu;
+
+
   bool sig_dStar_2S;
   bool sig_d_2S;
 
@@ -226,7 +252,7 @@ private:
 
   bool getDecayIds(Particle& p,set<int>& chrId,set<int>& pi0Id, set<int>& gammaId, bool print=false);
   bool getMassFromDecayParticles(Particle& p, HepLorentzVector& mom);
-  void recCheck(const Gen_hepevt& gen_it, vector<int>& ids, vector<int>& pids, int& numNu);
+  void recCheck(const Gen_hepevt& gen_it, vector<int>& ids, vector<int>& pids, int& numNu, bool onlyCorrectDDecays=true);
 
   float getTheta(Particle* p1,Particle* p2)
   {

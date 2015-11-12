@@ -1,4 +1,4 @@
-const bool PRINT=false;
+const bool PRINT=true;
 const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include <iomanip>
 #include "mdst/findKs.h"
@@ -47,9 +47,14 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include "fastjet/ClusterSequence.hh"
 #include <iostream>
 
-
+#define PY_E 11
+#define PY_Tau 15
+#define PY_NuE 12
+#define PY_NuMu 14
+#define PY_NuTau 16
 #define PY_ELECTRON 11
 #define PY_MU 13
+#define PY_Mu 13
 #define PY_PI 211
 #define PY_K 321
 #define PY_Pi0 111
@@ -361,21 +366,33 @@ namespace Belle {
   // event function
   void bToDDoubleStar::event(BelleEvent* evptr, int* status)
   {
+    bool bgFlag=false;
+    bool foundDDStarFlag=false;
     //for the output of the decay signature query
     sig_FoundDDoubleStar=false;
     sig_numLeptons=0;
     sig_numKaons=0;
     sig_numPions=0;
+    sig_numD=0;
+    sig_numDStar=0;
     sig_numPi0=0;
     sig_numBaryons=0;
     sig_dStar_2S=false;
     sig_d_2S=false;
 
+    sigDStarLNu=0;
+    sigDStarPiLNu=0;
+    sigDStarPiPiLNu=0;
+
+    sigDLNu=0;
+    sigDPiLNu=0;
+    sigDPiPiLNu=0;
+
+
     found_2SD=false;
     found_2SD_Star=false;
 
     const double m_pi0=0.1349766;
-
     vector<int> foundDecIds;
     int numNu=0;
     vector<int> decIds;
@@ -388,7 +405,6 @@ namespace Belle {
 	//find b meson id in the simulation
    
 	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay);
-
 	if(foundDPiPi || foundSinglePionDecay)
 	  {
 	    //print
@@ -407,14 +423,12 @@ namespace Belle {
 	  }
       }
     //    printMCList();
-
-    set<int> chargedIds;
-    set<int> pi0Ids;
-    set<int> gammaIds;
+  
+    chargedIds.clear();
+    pi0Ids.clear();
+     gammaIds.clear();
 
     //the signal decay candidates (after removing decay products from the best B
-
-
     //from Robin...
     const double _log_nbout_min=-3;
     //    const double _tag_Mbc=5.25;
@@ -559,6 +573,19 @@ namespace Belle {
     
     //    cout <<"best log prob: "<< bestLogProb<<endl;
     Particle & bestBcand = const_cast<Particle &>(brecon.getParticle( (int)bestEKP_B.get_ID() ));
+    bestBPx=bestBcand.px();
+    bestBPy=bestBcand.py();
+    bestBPz=bestBcand.pz();
+    //    cout <<"looking at b cand" <<endl;
+
+    //    if(bestBcand.mdstVee2())
+    //      cout <<"b has vee2 " <<endl;
+    //    if(bestBcand.mdstCharged())
+    //      cout <<"b has charged " <<endl;
+
+
+    //    Gen_hepevt hepEvt=get_hepevt(p->mdst);
+
     float tagCorr=tagcorr(bestDecay,bestProb);
 
     treeData.mBTag=bestTagM;
@@ -573,13 +600,30 @@ namespace Belle {
     treeData.found_2SD_Star=found_2SD_Star;
     treeData.foundAnyDDoubleStar=sig_FoundDDoubleStar;
     treeData.sig_numPions=sig_numPions;
+    treeData.sig_numD=sig_numD;
+    treeData.sig_numDStar=sig_numDStar;
     treeData.sig_numKaons=sig_numKaons;
     treeData.sig_numPi0=sig_numPi0;
     treeData.sig_numLeptons=sig_numLeptons;
     treeData.sig_numBaryons=sig_numBaryons;
+    treeData.tagOverlapFractionCharged=overlapFractionCharged;
+    treeData.tagOverlapFractionPi0=overlapFractionPi0;
+    if((sigDStarLNu || sigDStarPiLNu || sigDStarPiPiLNu )&& sig_FoundDDoubleStar)
+      {
+	//	cout <<"found dlnu and ddouble star!!!!!" <<endl;
+
+      }
+
+    treeData.sigDLNu=sigDLNu;
+    treeData.sigDPiLNu=sigDPiLNu;
+    treeData.sigDPiPiLNu=sigDPiPiLNu;
+
+    treeData.sigDStarLNu=sigDStarLNu;
+    treeData.sigDStarPiLNu=sigDStarPiLNu;
+    treeData.sigDStarPiPiLNu=sigDStarPiPiLNu;
+
     treeData.sig_dStar_2S=sig_dStar_2S;
     treeData.sig_d_2S=sig_d_2S;
-
 
     getDecayIds(bestBcand,chargedIds,pi0Ids,gammaIds);
     //pi0s and gamma's seem to be balanced
@@ -684,6 +728,7 @@ namespace Belle {
 	      {
 		//	      cout <<"is electron" <<endl;
 	      }
+	    
 	    m_mass=m_e;
 	    massHyp=0;
 	    positivelyIdentified=true;
@@ -787,7 +832,8 @@ namespace Belle {
 		  }
 	      }
 	  }
-
+	else
+	cout <<"e_id : "<< e_id <<" mu_id: "<< mu_id <<endl;
 	//default pion, good enough
 	//	if(!positivelyIdentified)
 	//	  continue;
@@ -812,6 +858,7 @@ namespace Belle {
 
 
 	Particle* p=new Particle(*chr_it,string(ptypName));
+	  
 	//	cout <<"mom px: "<< mom.p().px()<<" py: " << mom.p().py() <<" pz: "<< mom.p().pz() <<" t: "<< mom.p().t()<<endl;
 	//	cout <<"par px: "<< p->p().px()<<" py: " << p->p().py() <<" pz: "<< p->p().pz() <<" t: "<< p->p().t()<<endl;
        	//p->momentum(mom);
@@ -1131,6 +1178,8 @@ namespace Belle {
     bool foundRecDecay=false;
     if(m_mc)
       mcDecaySignature=(sig_FoundDDoubleStar && sig_numLeptons==1 && sig_numKaons==0 && (sig_numPions==1 || sig_numPions==2) && sig_numPi0==0 && sig_numBaryons==0);
+
+    //loop over found d mesons and check for each candidate if it fulfills the decay signature together with the rest of the event
     while(dtype!=dtype_end)
       {
 	vector<Particle*>* dMesons;
@@ -1212,6 +1261,10 @@ namespace Belle {
 	      }
 	    if(leptonCandidates.size()==1)
 	      {
+
+		Gen_hepevt hepEvt=get_hepevt(leptonCandidates[0]->mdstCharged());
+		cout << " we should have : "<<leptonCandidates[0]->pType().name() <<" and have: "<<  hepEvt.idhep() <<endl;
+
 		leptonCharge=leptonCandidates[0]->charge();
 	      }
 	    int numPions=localPiCandidates.size();
@@ -1315,6 +1368,50 @@ namespace Belle {
 		  }
 		if(PRINT)
 		  {
+
+		    if((sigDStarLNu || sigDStarPiLNu || sigDStarPiPiLNu )&& sig_FoundDDoubleStar)
+		      {
+			cout <<"found dlnu and ddouble star again!!!!!" <<endl;
+			cout <<"mNu2: " << mNu2 <<endl;
+		      }
+		    if(fabs(mNu2) < 1.0 && numPions==2)
+		      {
+
+			if(sig_FoundDDoubleStar)
+			  {
+			  cout <<"smallMNuTwoPionDDoubleStar" <<endl;
+			  foundDDStarFlag=true;
+			  }
+			if(!sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu && !sigDLNu && !sigDPiLNu && !sigDPiPiLNu)
+			  {
+			    if((!sig_FoundDDoubleStar || sig_numPions>2 || sig_numKaons!=0 || sig_numBaryons!=0 || sig_numPi0!=0 || sig_numLeptons!=1))
+			      {
+				cout <<"background event .." <<endl;
+				bgFlag=true;
+			      }
+			  }
+			cout <<" small mNu2 (" << mNu2 <<" ),  sigDLNu: "<< sigDLNu << " dpilnu: "<< sigDPiLNu <<" dpipilnu: "<< sigDPiPiLNu<<endl;
+			cout <<"Dstarlnu: " << sigDStarLNu <<" dstarpilnu: "<< sigDStarPiLNu <<" dstarpipilnu: " << sigDStarPiPiLNu <<endl;
+
+			cout <<"found any ddouble star? : "<< sig_FoundDDoubleStar <<" num pions: "<< sig_numPions <<" num kaons: ";
+			cout <<sig_numKaons <<" num pi0:"<< sig_numPi0 <<" num baryon: " << sig_numBaryons <<endl;
+			if(!sigDLNu && !sigDPiLNu && !sigDPiPiLNu && !sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu)
+			  {
+			    if(!sig_FoundDDoubleStar || (sig_numPions> 2 || sig_numKaons>0 || sig_numBaryons>0 || sig_numPi0>0|| sig_numLeptons!=1))
+			      cout <<"found strange strange background " <<endl;
+			  }
+
+			Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+			for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+			  {
+			if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
+			  {
+			      recursivePrint(*gen_it,"");
+			  }
+
+			  }
+		      }
+
 		    if(fabs(mNu2)<0.02 && !foundDPiPi  && !foundSinglePionDecay)
 		      {
 			cout <<"small nu mass but nothing found... "<< mNu2 << endl;
@@ -1506,16 +1603,20 @@ namespace Belle {
     treeData.mcDecaySignature=mcDecaySignature;
     if(foundRecDecay)
       {
+	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
+	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
 	saveTree();
 	cout <<"indeed foundRec " <<endl;
       }
     if(mcDecaySignature&& !foundRecDecay)
       {
-		cout <<"mc decay but not foundRec " <<endl;
+	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
+	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
+	//		cout <<"mc decay but not foundRec " <<endl;
 	saveTree();
       }
-    if(!mcDecaySignature && !foundRecDecay)
-      cout <<"haven't found anything " <<endl;
+    //    if(!mcDecaySignature && !foundRecDecay)
+    //      cout <<"haven't found anything " <<endl;
     exitEvent();
   }
 
@@ -1569,6 +1670,8 @@ namespace Belle {
 
   void bToDDoubleStar::exitEvent()
   {
+
+
 #ifdef SAVE_HISTOS
     // saveHistos(allParticlesBoosted, allParticlesNonBoosted);
 #endif
@@ -1795,7 +1898,7 @@ namespace Belle {
     genhep_vec* daughters=getDaughters(gen_it);
     int lund=fabs(gen_it.idhep());
 
-    if(lund==911|| lund>9000000)
+    if(lund==911|| lund>9000000 || lund==30343)
       return false;
     Particle p(gen_it);
     if(lund== 100423 || lund ==100421 ||lund==PY_DStar_2S || lund==100411 || lund==100413 )
@@ -1810,9 +1913,10 @@ namespace Belle {
     //don't print eventual decay products of kaons etc...
     if(lund==211 || lund==321 || lund==13 || lund==111)
       return true;
-    
+
     for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
       {
+	//	cout <<"looking at lund; "<< (*it)->idhep()<<endl;
 	recursivePrint(**it,s+("-->"));
       }
     cout <<s<<endl;
@@ -1831,6 +1935,7 @@ namespace Belle {
 	    cout <<"getDecayIds::inserting pi0, ID: "<< p.mdstCharged().get_ID() <<" momentum: "<< p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
 	  }
       }
+
 
     if(p.nChildren()<=0)
       {
@@ -1928,13 +2033,13 @@ namespace Belle {
   //@param ids  the ids of the decay particles
   //@param pids the pids of the decay particles
   //@numNu number of neutrinos in the decay
-  void bToDDoubleStar::recCheck(const Gen_hepevt& gen_it, vector<int>& ids, vector<int>& pids, int& numNu)
+  void bToDDoubleStar::recCheck(const Gen_hepevt& gen_it, vector<int>& ids, vector<int>& pids, int& numNu, bool onlyCorrectDDecays)
   {
     //special case D's: check if they decay hadronically in a decay thta we can actually check.
     if(gen_it.idhep()==PY_D0)
       {
 	//found D0 in the decay we want
-	if(!isD0(gen_it))
+	if(!isD0(gen_it) && onlyCorrectDDecays)
 	  {
 	    //	cout <<"isD0 but not right decay" <<endl;
 	    noDRec=true;
@@ -1948,7 +2053,7 @@ namespace Belle {
 
     if((gen_it.idhep()==PY_D || gen_it.idhep()==-PY_D))
       {
-	if( !isChargedD(gen_it))
+	if( !isChargedD(gen_it) && onlyCorrectDDecays)
 	  {
 	    //	    cout <<"is charged D but not right decay" <<endl;
 	    noDRec=true;
@@ -1961,7 +2066,7 @@ namespace Belle {
       }
     if(gen_it.idhep()==PY_DStar || gen_it.idhep()==-PY_DStar || gen_it.idhep()==PY_DStar0)
       {
-	if(!isDStar(gen_it))
+	if(!isDStar(gen_it) && onlyCorrectDDecays)
 	  {
 	    //	    cout <<"isD* but not right decay" <<endl;
 	    noDRec=true;
@@ -1986,6 +2091,7 @@ namespace Belle {
 	return;
       }
     genhep_vec* daughters=getDaughters(gen_it);
+    //    cout <<"looking at " << daughters->size() <<" daughters " <<endl;
     if(daughters->size()==0)
       {
 	delete daughters;
@@ -1997,15 +2103,17 @@ namespace Belle {
 	  {
 	    int daughterId=(*it)->idhep();
 	    int daughterHepevtId=(*it)->get_ID();
-
+	    //	    cout << " daughterPID: "<< daughterId <<endl;
 	    if(detectable(daughterId))
 	      {
+
 		ids.push_back(daughterHepevtId);
 		pids.push_back(daughterId);
 	      }
 	    else
 	      {
-		recCheck(**it,ids,pids,numNu);
+		//		cout <<"calling rec check with " << daughterId <<endl;
+		recCheck(**it,ids,pids,numNu, onlyCorrectDDecays);
 	      }
 	  }
 
@@ -2022,8 +2130,30 @@ namespace Belle {
   bool bToDDoubleStar::checkForDPiPi(int& bMesonId,bool& foundSinglePionDecay, bool print)
   {
     foundSinglePionDecay=false;
+    overlapFractionCharged=.0;
+    overlapFractionPi0=.0;
 
     Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+
+    //find best b
+    float bestDistance=-1;
+    Gen_hepevt_Manager::iterator bestB;
+    for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+      {
+	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
+	if(geantID==PY_B0 || geantID==PY_B)
+	  {
+	    float distanceToBestB= (gen_it->PX()-bestBPx)*(gen_it->PX()-bestBPx)+(gen_it->PY()-bestBPy)*(gen_it->PY()-bestBPy)+(gen_it->PZ()-bestBPz)*(gen_it->PZ()-bestBPz);
+	    //	    cout <<"distance to best b is: "<< distanceToBestB << " (before " << bestDistance <<" ) " <<endl;
+	    if(distanceToBestB<bestDistance|| bestDistance<0)
+	      {
+		//		cout <<"best so far.. " <<endl;
+		bestDistance=distanceToBestB;
+		bestB=gen_it;
+	      }
+
+	  }
+      }
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
 	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
@@ -2038,9 +2168,93 @@ namespace Belle {
 
 	if(geantID==PY_B0 || geantID==PY_B)
 	  {
+	    bool tempFoundDDoubleStar=false;
+	    int tempNumLeptons=0;
+	    int tempNumPions=0;
+	    int tempNumKaons=0;
+	    int tempNumPi0=0;
+	    int tempNumBaryons=0;
+	    int tempNumD=0;
+	    int tempNumDStar=0;
+	    bool tempNumDStar2S=false;
+	    bool tempNumDStarD2S=false;
+	    int tempNumNu=0;
+	    //general check if we find one of the D(*)npi l nu decays
+
+	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S);
+
+	    //	    cout <<" get decay sig:numpions: "<< tempNumPions <<endl;
+
+	    //	    cout <<"found " << tempNumD << " Ds " << tempNumNu <<" Neutrinos " << tempNumPions <<" pions " << tempNumLeptons << " leptons " << tempFoundDDoubleStar <<" doublestar " << tempNumDStar2S << " star 2S " << tempNumKaons <<" kaons " << tempNumPi0 <<" pi0s " << tempNumBaryons <<" baryons " << tempNumDStar << " dstar " <<endl;
+	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+	      {
+		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumDStar==0)
+		  {
+		    if(tempNumPions<3)
+		      {
+
+			vector<int> candidateIds;
+			vector<int> candidatePids;
+			int numNu;
+			//to compute overlap with the tag B
+			Particle p(*gen_it);
+			//get decay id's doesn't work, because the gen_hep B particle class doesn't have the daufthers
+			//		    getDecayIds(p,candidateCharged,candidatePi0,candidateGamma,true);
+			recCheck(*gen_it, candidateIds,candidatePids, numNu,false);
+			set<int> sCandidateIds(candidateIds.begin(),candidateIds.end());
+			
+			int chargeOverlap=getOverlap(sCandidateIds,chargedIds);
+			int pi0Overlap=getOverlap(sCandidateIds,pi0Ids);
+			if(chargedIds.size()>0)
+			  overlapFractionCharged=(float)(chargeOverlap)/(float)(chargedIds.size());
+	
+			else
+			  overlapFractionCharged=0;
+			if(pi0Ids.size()>0)
+			  overlapFractionPi0=(float)(pi0Overlap)/(float)(pi0Ids.size());
+			else
+			  overlapFractionPi0=0;
+
+			//			cout <<"overlapFraction charged: "<< overlapFractionCharged <<" pi0: "<< overlapFractionPi0 <<endl;
+
+			//			cout <<"chargeOverlap: "<< chargeOverlap <<" of " << chargedIds.size()<<endl;
+			//			cout <<"pi0Overlap: "<< pi0Overlap <<" of " << pi0Ids.size()<<endl;
+		      }
+
+		    //		    if(gen_it==bestB && tempNumPions<3)
+		    //		      cout <<"found Dlnu npi decay for tag b " <<endl;
+		    //		    else
+		    //		      cout <<"not best Dlnu..." <<endl;
+
+		    if(tempNumPions==0)
+		      sigDLNu++;
+		    if(tempNumPions==1)
+		      sigDPiLNu++;
+		    if(tempNumPions==2)
+		      sigDPiPiLNu++;
+
+		  }
+
+	      }
+
+    if(tempNumDStar==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+	      {
+		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumD==0)
+		  {
+
+		    if(tempNumPions==0)
+		      sigDStarLNu++;
+		    if(tempNumPions==1)
+		      sigDStarPiLNu++;
+		    if(tempNumPions==2)
+		      sigDStarPiPiLNu++;
+		  }
+		
+	      }
+	  
 	    //haven't found it yet...
 	    if(!sig_FoundDDoubleStar)
-	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numPi0,sig_numBaryons, sig_dStar_2S, sig_d_2S);
+	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numPi0,sig_numBaryons,sig_numD, sig_numDStar,tempNumNu, sig_dStar_2S, sig_d_2S);
 	    if(!sig_FoundDDoubleStar)
 	      {
 		//still none, so reset fields
@@ -2049,6 +2263,8 @@ namespace Belle {
 		sig_numPions=0;
 		sig_numPi0=0;
 		sig_numBaryons=0;
+		sig_numD=0;
+		sig_numDStar=0;
 	      }
 	    bMesonId= gen_it->get_ID();
 	    genhep_vec* daughters=getDaughters(*gen_it);
@@ -2452,11 +2668,10 @@ namespace Belle {
 
 
   //see if this B has any bDoubleSTar and count number of charged pions, kaons, pi0s (so independent of the actual decay)
-  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons, bool& dStar_2S, bool& d_2S)
+  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar, int& numNu, bool& dStar_2S, bool& d_2S)
   {
     genhep_vec* daughters=getDaughters(mother);
     int lund=fabs(mother.idhep());
-
     if(lund==911|| lund>9000000)
       return false;
     Particle p(mother);
@@ -2471,9 +2686,15 @@ namespace Belle {
     if(lund==100423|| lund==100413)
       dStar_2S=true;
 
-    if(lund==PY_DStar || lund==PY_DStar0 || lund==PY_D || lund==PY_D0)
+    if(lund==PY_D || lund==PY_D0)
+      {
+	numD++;
+	return true;
+      }
+    if(lund==PY_DStar || lund==PY_DStar0)
       {
 	//don't add D decay products to number of pions etc...
+	numDStar++;
 	return true;
       }
 
@@ -2487,14 +2708,23 @@ namespace Belle {
 	numKaons++;
 	return true;
       }
-    if(lund==PY_MU|| lund==PY_ELECTRON)
+
+    if(lund==PY_Pi0)
+      {
+	numPi0++;
+	return true;
+      }
+    if(lund==PY_E || lund==PY_Mu|| lund==PY_Tau)
       {
 	numLeptons++;
 	return true;
       }
-    if(lund==PY_Pi0)
+
+    if(lund==PY_NuE || lund==PY_NuMu|| lund==PY_NuTau)
       {
-	numPi0++;
+
+	numNu++;
+
 	return true;
       }
     if(lund==2112 || lund==2212)
@@ -2508,7 +2738,7 @@ namespace Belle {
       }    
     for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
       {
-	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numPi0,numBaryons,dStar_2S, d_2S);
+	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S);
       }
   }
 
@@ -2529,8 +2759,8 @@ namespace Belle {
       Panther_ID ID0(mother.daFirst()+i);
       if(ID0==0)
 	{
-	  if(PRINT)
-	    cout <<"wrong!!!" <<endl;
+	  //	  if(PRINT)
+	  //	    cout <<"wrong!!!" <<endl;
 	  break;
 	}
       Gen_hepevt& temp = gen_hepevt_mgr(ID0);
@@ -3552,8 +3782,22 @@ namespace Belle {
     confLevel=km.cl();
     return makeMother(km,p);
   }
-
-
+  int bToDDoubleStar::getOverlap(set<int>& s1, set<int>& s2)
+    {
+      int ret=0;
+      for(set<int>::iterator it=s1.begin();it!=s1.end();it++)
+	{
+	  for(set<int>::iterator it2=s2.begin();it2!=s2.end();it2++)
+	{
+	  if((*it)==(*it2))
+	    {
+	      ret++;
+	    }
+	}
+	}
+      return ret;
+    }
+  
 
 #if defined(BELLE_NAMESPACE)
 } // namespace Belle
