@@ -1,0 +1,92 @@
+
+[1mRooFit v3.14 -- Developed by Wouter Verkerke and David Kirkby[0m 
+                Copyright (C) 2000-2010 NIKHEF, University of California & Stanford University
+                All rights reserved, please read http://roofit.sourceforge.net/license.txt
+
+selection for DDstar: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+ DDstarPi: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+ DDstarPiPi: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+ DlNu: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DLNu )
+ DPilNu:tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiLNu )
+ DPiPilNu: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiPiLNu )
+ all: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)
+draw command: mNu2 >> histo_If_0_b_0, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_1, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_2, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_3, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_4, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_5, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiPiLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_6, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_7, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_8, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiPiLNu )
+drawing tree 0
+draw command: mNu2 >> histo_If_0_b_9, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)
+drawing tree 0
+draw command: mNu2 >> histo_If_1_b_0, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_1, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_2, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_3, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_4, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_5, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiPiLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_6, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_7, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_8, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiPiLNu )
+drawing tree 1
+draw command: mNu2 >> histo_If_1_b_9, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)
+drawing tree 1
+draw command: mNu2 >> histo_If_2_b_0, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_1, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_2, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_3, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_4, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_5, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiPiLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_6, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_7, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_8, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiPiLNu )
+drawing tree 2
+draw command: mNu2 >> histo_If_2_b_9, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)
+drawing tree 2
+draw command: mNu2 >> histo_If_3_b_0, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_1, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_2, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1)
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_3, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_4, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_5, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DPiPiLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_6, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_7, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_8, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && !foundAnyDDoubleStar && sig_DStarPiPiLNu )
+drawing tree 3
+draw command: mNu2 >> histo_If_3_b_9, selections: tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==2 && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)
+drawing tree 3

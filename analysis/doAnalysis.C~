@@ -1,0 +1,17 @@
+#include "TCut.h"
+#include "TTree.h"
+
+
+void doAnalysis(char* fileName)
+{
+
+  TFile  file(fileName);
+
+
+TTree* dataTree = get
+  dataTree->Draw("x >> result")
+  TH1F* result=(TH1F*) gDirectory->Get("result"):
+
+
+
+}
