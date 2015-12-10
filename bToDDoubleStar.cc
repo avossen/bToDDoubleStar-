@@ -3798,7 +3798,6 @@ namespace Belle {
       return ret;
     }
   
-
 #if defined(BELLE_NAMESPACE)
 } // namespace Belle
 #endif
