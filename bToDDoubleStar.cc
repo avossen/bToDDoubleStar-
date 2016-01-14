@@ -1,4 +1,4 @@
-const bool PRINT=true;
+const bool PRINT=false;
 const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include <iomanip>
 #include "mdst/findKs.h"
@@ -426,7 +426,7 @@ namespace Belle {
   
     chargedIds.clear();
     pi0Ids.clear();
-     gammaIds.clear();
+    gammaIds.clear();
 
     //the signal decay candidates (after removing decay products from the best B
     //from Robin...
@@ -733,10 +733,18 @@ namespace Belle {
 	    massHyp=0;
 	    positivelyIdentified=true;
 	    isLepton=true;
+
 	    if(charge>0)
-	      strcpy(ptypName,"E+");
+	      {
+		strcpy(ptypName,"E+");	   
+		treeData.leptonId=11;
+	      }
 	    else
-	      strcpy(ptypName,"E-");
+	      {
+		treeData.leptonId=-11;
+		strcpy(ptypName,"E-");
+	      }
+
 	    m_histos.hPidE->Fill(chr_it->trk().pid_e(),chr_it->trk().pid_mu());
 	    m_histos.hPidEPi->Fill(chr_it->trk().pid_e(),chr_it->trk().pid_pi());
 	  }
@@ -751,9 +759,16 @@ namespace Belle {
 	    m_mass=m_muon;
 	    massHyp=1;
 	    if(charge>0)
-	      strcpy(ptypName,"MU+");
+	      {
+		treeData.leptonId=13;
+		strcpy(ptypName,"MU+");
+	      }
 	    else
-	      strcpy(ptypName,"MU-");
+	      {
+		treeData.leptonId=-13;
+		strcpy(ptypName,"MU-");
+	      }
+
 	    positivelyIdentified=true;
 	    isLepton=true;
 	    m_histos.hPidMu->Fill(chr_it->trk().pid_e(),chr_it->trk().pid_mu());
@@ -833,12 +848,14 @@ namespace Belle {
 	      }
 	  }
 	else
-	cout <<"e_id : "<< e_id <<" mu_id: "<< mu_id <<endl;
+	  {
+	    //	cout <<"e_id : "<< e_id <<" mu_id: "<< mu_id <<endl;
+	  }
 	//default pion, good enough
 	//	if(!positivelyIdentified)
 	//	  continue;
 
-	double dr, dz, refitPx, refitPy, refitPz;
+	double dr,dz, refitPx, refitPy, refitPz;
 	//	Momentum mom=p->momentum();
 	getDrDz(chr_it, massHyp,dr,dz, refitPx, refitPy, refitPz, m_mass);
 
@@ -969,8 +986,8 @@ namespace Belle {
 	//	if(abs((g1Energy-g2Energy)/(g1Energy+g2Energy))>cuts::maxPi0GAsym)
 	//	  continue;
 	//let's make this 100 MeV rather than 50 (see Charlotte's study)
-	if(g1Energy < 0.1 || g2Energy < 0.1)
-	//	if(g1Energy < 0.05 || g2Energy < 0.05)
+	//	if(g1Energy < 0.1 || g2Energy < 0.1)
+	if(g1Energy < 0.05 || g2Energy < 0.05)
 	  continue;
 	Particle* p=new Particle(pi0);
 	double confLevel;
@@ -1252,7 +1269,6 @@ namespace Belle {
 		  numExtraKaons++;
 	      }
 
-
 	    double pionCharge=0;
 	    double leptonCharge=0;
 	    for(int i=0;i<localPiCandidates.size();i++)
@@ -1261,10 +1277,8 @@ namespace Belle {
 	      }
 	    if(leptonCandidates.size()==1)
 	      {
-
 		Gen_hepevt hepEvt=get_hepevt(leptonCandidates[0]->mdstCharged());
-		cout << " we should have : "<<leptonCandidates[0]->pType().name() <<" and have: "<<  hepEvt.idhep() <<endl;
-
+		//		cout << " we should have : "<<leptonCandidates[0]->pType().name() <<" and have: "<<  hepEvt.idhep() <<endl;
 		leptonCharge=leptonCandidates[0]->charge();
 	      }
 	    int numPions=localPiCandidates.size();
@@ -1288,9 +1302,14 @@ namespace Belle {
 	      cout <<"numOtherTracks: "<< numOtherTracks <<" numExtraKaons: "<< numExtraKaons <<" numPions: "<< numPions << "lepton Candidates: "<< leptonCandidates.size() << " system charge: "<< pionCharge+leptonCharge+dCharge <<" best B charge: "<<  bestBcand.charge() <<endl;
 
 
-	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0 && bestBcand.charge()==((-1)*(pionCharge+leptonCharge+dCharge));
+	    //	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0 && bestBcand.charge()==((-1)*(pionCharge+leptonCharge+dCharge));
+	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
 
-	     if(recDecaySignature)
+	    int bestBCharge=bestBcand.charge();
+	    int systemCharge=pionCharge+leptonCharge+dCharge;
+
+
+	    if(recDecaySignature)
 	      {
 		foundRecDecay=true;
 		if(PRINT)
@@ -1307,7 +1326,7 @@ namespace Belle {
 		//	    	    cout <<"best b m: "<< bMomentum.mag() <<endl;
 
 
-		  HepLorentzVector Pxl;
+		HepLorentzVector Pxl;
 		if(leptonCandidates.size()>0)
 		  Pxl=D.p()+leptonCandidates[0]->p()+pionMom;
 		else
@@ -1371,43 +1390,44 @@ namespace Belle {
 
 		    if((sigDStarLNu || sigDStarPiLNu || sigDStarPiPiLNu )&& sig_FoundDDoubleStar)
 		      {
-			cout <<"found dlnu and ddouble star again!!!!!" <<endl;
-			cout <<"mNu2: " << mNu2 <<endl;
+			//			cout <<"found dlnu and ddouble star again!!!!!" <<endl;
+			//			cout <<"mNu2: " << mNu2 <<endl;
 		      }
 		    if(fabs(mNu2) < 1.0 && numPions==2)
 		      {
 
 			if(sig_FoundDDoubleStar)
 			  {
-			  cout <<"smallMNuTwoPionDDoubleStar" <<endl;
-			  foundDDStarFlag=true;
+			    //			    cout <<"smallMNuTwoPionDDoubleStar" <<endl;
+			    foundDDStarFlag=true;
 			  }
 			if(!sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu && !sigDLNu && !sigDPiLNu && !sigDPiPiLNu)
 			  {
 			    if((!sig_FoundDDoubleStar || sig_numPions>2 || sig_numKaons!=0 || sig_numBaryons!=0 || sig_numPi0!=0 || sig_numLeptons!=1))
 			      {
-				cout <<"background event .." <<endl;
+				//				cout <<"background event .." <<endl;
 				bgFlag=true;
 			      }
 			  }
-			cout <<" small mNu2 (" << mNu2 <<" ),  sigDLNu: "<< sigDLNu << " dpilnu: "<< sigDPiLNu <<" dpipilnu: "<< sigDPiPiLNu<<endl;
-			cout <<"Dstarlnu: " << sigDStarLNu <<" dstarpilnu: "<< sigDStarPiLNu <<" dstarpipilnu: " << sigDStarPiPiLNu <<endl;
+			//			cout <<" small mNu2 (" << mNu2 <<" ),  sigDLNu: "<< sigDLNu << " dpilnu: "<< sigDPiLNu <<" dpipilnu: "<< sigDPiPiLNu<<endl;
+			//			cout <<"Dstarlnu: " << sigDStarLNu <<" dstarpilnu: "<< sigDStarPiLNu <<" dstarpipilnu: " << sigDStarPiPiLNu <<endl;
 
-			cout <<"found any ddouble star? : "<< sig_FoundDDoubleStar <<" num pions: "<< sig_numPions <<" num kaons: ";
-			cout <<sig_numKaons <<" num pi0:"<< sig_numPi0 <<" num baryon: " << sig_numBaryons <<endl;
+			//			cout <<"found any ddouble star? : "<< sig_FoundDDoubleStar <<" num pions: "<< sig_numPions <<" num kaons: ";
+			//			cout <<sig_numKaons <<" num pi0:"<< sig_numPi0 <<" num baryon: " << sig_numBaryons <<endl;
 			if(!sigDLNu && !sigDPiLNu && !sigDPiPiLNu && !sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu)
 			  {
-			    if(!sig_FoundDDoubleStar || (sig_numPions> 2 || sig_numKaons>0 || sig_numBaryons>0 || sig_numPi0>0|| sig_numLeptons!=1))
+			    if(!sig_FoundDDoubleStar || (sig_numPions> 2 || sig_numKaons>0 || sig_numBaryons>0 || sig_numPi0>0|| sig_numLeptons!=1)) {
 			      cout <<"found strange strange background " <<endl;
+			      }
 			  }
 
 			Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
 			for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
 			  {
-			if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
-			  {
-			      recursivePrint(*gen_it,"");
-			  }
+			    if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
+			      {
+				recursivePrint(*gen_it,"");
+			      }
 
 			  }
 		      }
@@ -1603,15 +1623,15 @@ namespace Belle {
     treeData.mcDecaySignature=mcDecaySignature;
     if(foundRecDecay)
       {
-	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
-	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
+	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
+	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
 	saveTree();
-	cout <<"indeed foundRec " <<endl;
+	//	cout <<"indeed foundRec " <<endl;
       }
     if(mcDecaySignature&& !foundRecDecay)
       {
-	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
-	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
+	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
+	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
 	//		cout <<"mc decay but not foundRec " <<endl;
 	saveTree();
       }
@@ -1901,10 +1921,12 @@ namespace Belle {
     if(lund==911|| lund>9000000 || lund==30343)
       return false;
     Particle p(gen_it);
-    if(lund== 100423 || lund ==100421 ||lund==PY_DStar_2S || lund==100411 || lund==100413 )
+    if(lund== 100423 || lund ==100421 ||lund==PY_DStar_2S || lund==100411 || lund==100413 ){
       cout <<s << lund << endl;
-    else
+    }
+    else{
       cout <<s<<p.pType().name() <<" (" << p.pType().lund()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
+    }
     if(daughters->size()<=0)
       {
 	//	cout <<"has " << p.nChildren()<<" children " <<endl;
@@ -2237,7 +2259,7 @@ namespace Belle {
 
 	      }
 
-    if(tempNumDStar==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+	    if(tempNumDStar==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
 	      {
 		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumD==0)
 		  {
@@ -3607,9 +3629,10 @@ namespace Belle {
 	    histoRecDStarSpect->Fill(m);
 	    histoRecDStarSpectToD0Pi->Fill(m);
 	    if(m>m_dStarPlusmass_max || m < m_dStarPlusmass_min ||isnan(m)) continue;
-	    //	    cout <<"m -D: "<< m-D.p().mag() <<endl;
-	    //	    cout <<"looking at dstar, mass diff: " <<(m_DStarPlus-m_D0) <<" vs : " << (m-D.p().mag());
-	    //	    cout <<" gives: " << fabs(m-D.p().mag()-(m_DStarPlus-m_D0)) <<endl;
+	    //	    cout <<"D0+pi"<<endl;
+	    //	        cout <<"m -D: "<< m-D.p().mag() <<endl;
+	    //	    	    cout <<"looking at dstar, mass diff: " <<(m_DStarPlus-m_D0) <<" vs : " << (m-D.p().mag());
+	    //	        cout <<" gives: " << fabs(m-D.p().mag()-(m_DStarPlus-m_D0)) <<endl;
 	    if(fabs(m-D.p().mag()-(m_DStarPlus-m_D0)) > max_massDifference) continue;
 	    //	    cout <<"done" <<endl;
 	    Particle* dStar =new Particle(p_dStar,Ptype(pion.charge()>0 ? "D*+" : "D*-"));
@@ -3727,7 +3750,6 @@ namespace Belle {
   //dmitries code..
   unsigned bToDDoubleStar::doKmVtxFit2(Particle &p, double& confLevel, int debug, double mass)
   {
-
     kmassvertexfitter kmvfitter;
     kmvfitter.invariantMass(mass==0 ? p.pType().mass() : mass);
     for(unsigned i=0; i<p.nChildren(); ++i)
@@ -3783,20 +3805,20 @@ namespace Belle {
     return makeMother(km,p);
   }
   int bToDDoubleStar::getOverlap(set<int>& s1, set<int>& s2)
-    {
-      int ret=0;
-      for(set<int>::iterator it=s1.begin();it!=s1.end();it++)
-	{
-	  for(set<int>::iterator it2=s2.begin();it2!=s2.end();it2++)
-	{
-	  if((*it)==(*it2))
-	    {
-	      ret++;
-	    }
-	}
-	}
-      return ret;
-    }
+  {
+    int ret=0;
+    for(set<int>::iterator it=s1.begin();it!=s1.end();it++)
+      {
+	for(set<int>::iterator it2=s2.begin();it2!=s2.end();it2++)
+	  {
+	    if((*it)==(*it2))
+	      {
+		ret++;
+	      }
+	  }
+      }
+    return ret;
+  }
   
 #if defined(BELLE_NAMESPACE)
 } // namespace Belle

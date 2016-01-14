@@ -13,12 +13,16 @@ class BTreeData
   int recBToDlNuPi;
   float logProb;
 
+  int bestBCharge;
+  int systemCharge;
+
   float deltaETag;
   float mBTag;
   int tagId;
   int tagDecay;
   float tagCorr;
 
+  int leptonId;
 
   int found_2SD;
   int found_2SD_Star;

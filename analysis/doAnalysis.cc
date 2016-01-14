@@ -11,8 +11,20 @@
 #include <fstream>
 #include <cstdlib>
 #include <set>
+
+#include "TFractionFitter.h"
+#include "doAnalysis.h"
+
 using namespace std;
-void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions=2);
+void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions=2, int leptonId=0);
+
+//get the components that are used for teh TFractionFitter
+void getMCComponents(TTree** trees, TH1F** components, int numPions, int leptonId);
+
+void doSidebandComparison(TTree** trees, TH1F** sidebands);
+
+
+
 int main(int argc, char** argv)
 {
 
@@ -25,14 +37,55 @@ int main(int argc, char** argv)
   char* fileNameCharged=argv[2];
   char* fileNameUds=argv[3];
   char* fileNameCharm=argv[4];
+  char* fileNameData=argv[5];
 
-  int numPions=atoi(argv[5]);
+  int numPions=atoi(argv[6]);
   cout <<"want " << numPions <<endl;
+
+
   doAnalysis(fileNameMixed,fileNameCharged,fileNameUds,fileNameCharm, numPions);
+
+  char* fileNames[5];
+
+  fileNames[0]=new char[200];
+  fileNames[1]=new char[200];
+  fileNames[2]=new char[200];
+  fileNames[3]=new char[200];
+  fileNames[4]=new char[200];
+
+
+  TFile* files[5];
+  TTree* trees[5];
+
+  files[0]=new TFile(fileNameMixed);
+  files[1]=new TFile(fileNameCharged);
+  files[2]=new TFile(fileNameUds);
+  files[3]=new TFile(fileNameCharm);
+  files[4]=new TFile(fileNameData);
+
+
+  for(int i=0;i<5;i++)
+    {
+       trees[i] = (TTree*)files[i]->Get("DataTree");
+       if(!trees[i])
+	 cout <<"tree " << i << " is NULL" <<endl;
+    }
+
+  TH1F** components[11*4];
+  //the allocation of the actual histograms is done in the functions
+  TH1F** summedCompoments[11];
+
+
+
 
 }
 
-void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions)
+
+
+
+
+
+void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions, int leptonId)
 {
 
   /*
@@ -195,8 +248,14 @@ ii) The correct
     selections[9]=bufferAll;
     selections[10]=bufferNoSelection;
 
-
-    sprintf(buffer,"tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0",numPions);
+    if(leptonId!=0)
+      {
+	sprintf(buffer,"tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",numPions,leptonId);
+      }
+    else
+      {
+	sprintf(buffer,"tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",numPions);
+      }
 
     sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1 && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
     //sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1)",buffer);

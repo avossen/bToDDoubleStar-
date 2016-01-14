@@ -69,6 +69,9 @@ public:
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
+    addFieldI("bestBCharge");
+    addFieldI("systemCharge");
+
     addFieldI("sig_numPions");
     addFieldI("sig_numKaons");
     addFieldI("sig_numPi0");
@@ -98,6 +101,7 @@ public:
     addFieldI("recBToDlNuPiPi");
     addFieldI("recBToDlNuPi");
     addFieldI("foundLepton");
+    addFieldI("leptonId");
     addFieldI("foundPiPlus");
     addFieldI("foundPiMinus");
     addFieldI("foundDMeson");
@@ -158,7 +162,9 @@ public:
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
       (*(int*)treeData[index++])=data->foundAnyDDoubleStar;
-      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
+      (*(int*)treeData[index++])=data->bestBCharge;
+      (*(int*)treeData[index++])=data->systemCharge;
+      //      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
       (*(int*)treeData[index++])=data->sig_numPions;
       (*(int*)treeData[index++])=data->sig_numKaons;
       (*(int*)treeData[index++])=data->sig_numPi0;
@@ -166,13 +172,13 @@ public:
       (*(int*)treeData[index++])=data->sig_numBaryons;
 
       (*(int*)treeData[index++])=data->sigDLNu;
-      cout <<"dlnu : "<<data->sigDLNu <<endl;
-      cout <<"dPilnu : "<<data->sigDPiLNu <<endl;
-      cout <<"dPiPilnu : "<<data->sigDPiPiLNu <<endl;
+      //      cout <<"dlnu : "<<data->sigDLNu <<endl;
+      //      cout <<"dPilnu : "<<data->sigDPiLNu <<endl;
+      //      cout <<"dPiPilnu : "<<data->sigDPiPiLNu <<endl;
 
-      cout <<"dStarlnu : "<<data->sigDStarLNu <<endl;
-      cout <<"dStarPilnu : "<<data->sigDStarPiLNu <<endl;
-      cout <<"dStarPiPilnu : "<<data->sigDStarPiPiLNu <<endl;
+      //      cout <<"dStarlnu : "<<data->sigDStarLNu <<endl;
+      //      cout <<"dStarPilnu : "<<data->sigDStarPiLNu <<endl;
+      //      cout <<"dStarPiPilnu : "<<data->sigDStarPiPiLNu <<endl;
       (*(int*)treeData[index++])=data->sigDPiLNu;
       (*(int*)treeData[index++])=data->sigDPiPiLNu;
 
@@ -193,6 +199,7 @@ public:
       (*(int*)treeData[index++])=data->recBToDlNuPiPi;
       (*(int*)treeData[index++])=data->recBToDlNuPi;
       (*(int*)treeData[index++])=data->foundLepton;
+      (*(int*)treeData[index++])=data->leptonId;
       (*(int*)treeData[index++])=data->foundPiPlus;
       (*(int*)treeData[index++])=data->foundPiMinus;
       (*(int*)treeData[index++])=data->foundDMeson;
