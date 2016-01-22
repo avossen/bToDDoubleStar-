@@ -1305,8 +1305,8 @@ namespace Belle {
 	    //	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0 && bestBcand.charge()==((-1)*(pionCharge+leptonCharge+dCharge));
 	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
 
-	    int bestBCharge=bestBcand.charge();
-	    int systemCharge=pionCharge+leptonCharge+dCharge;
+	    treeData.bestBCharge=bestBcand.charge();
+	    treeData.systemCharge=pionCharge+leptonCharge+dCharge;
 
 
 	    if(recDecaySignature)
