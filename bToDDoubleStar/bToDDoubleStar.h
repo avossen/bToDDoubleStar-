@@ -17,10 +17,8 @@
 #include "bToDDoubleStar/TreeSaver.h"
 #include <vector>
 
-#include "fastjet/ClusterSequence.hh"
 #include <iostream>
 
-using namespace fastjet;
 using namespace std;
 
 
@@ -47,10 +45,15 @@ public:
   void init ( int * );
   void printMCList();
   int goodHadronB() const;
+
+  //should get the tree data info
+  float getBRCorrection();
+  float getFFCorrection();
+
   // begin_run function
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
-  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S);
+  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S,int* br_sigs);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
   void saveTree();
@@ -88,7 +91,9 @@ public:
     int getOverlap(set<int>& s1, set<int>& s2);
 
   bool recursivePrint(const Gen_hepevt gen_it, string s);
-
+  bool isAnyD(int lund);
+  bool getDDecayProducts(const Gen_hepevt, int& Kp, int& Km, int& Ks, int& Pip, int& Pim, int& Pi0, int& other);
+  void computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other);
 
 
 static int getBin(vector<float>& b1, float value)
@@ -134,6 +139,47 @@ static int getBin(vector<float>& b1, float value)
   int sig_numBaryons;
   int sig_numD;
   int sig_numDStar;
+
+
+  ///for corrections
+  int br_sig_D0LNu;
+  int br_sig_DLNu;
+
+  int br_sig_DStarLNu;
+  int br_sig_DStar0LNu;
+    
+  int br_sig_D1LNu;
+  int br_sig_D2LNu;
+
+  int br_sig_D1PrimeLNu;
+  int br_sig_D0StarLNu;
+  
+  int br_sig_D10LNu;
+  int br_sig_D20LNu;
+
+  int br_sig_D1Prime0LNu;
+  int br_sig_D0Star0LNu;
+  
+  int br_sig_D0;
+  int br_sig_D;
+
+  int br_sig_DStar;
+  int br_sig_DStar0;
+
+  int br_sig_D1;
+  int br_sig_D2;
+
+  int br_sig_D1Prime;
+  int br_sig_D0Star;
+
+  int br_sig_D10;
+  int br_sig_D20;
+  
+  int br_sig_D1Prime0;
+  int br_sig_D0Star0;
+
+
+    //
 
   float overlapFractionCharged;
   float overlapFractionPi0;

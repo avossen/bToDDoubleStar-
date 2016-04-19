@@ -5,7 +5,7 @@
 #include "particle/Particle.h"
 #include "bToDDoubleStar/AnaDefs.h"
 #include "bToDDoubleStar/AnaConsts.h"
-#include "fastjet/ClusterSequence.hh"
+//#include "fastjet/ClusterSequence.hh"
 
 
 //hopefully the correct lund codes..
@@ -34,23 +34,6 @@ class AuxFunc
 	return -1;
       }
 
-    static float computeFluffiness(fastjet::PseudoJet& jet)
-    {
-      vector<fastjet::PseudoJet> constituents=jet.constituents();
-      Hep3Vector jetDir=Hep3Vector(jet.px(),jet.py(),jet.pz());
-      float ret=0;
-      for(int i=0;i<constituents.size();i++)
-	{
-	  Hep3Vector constDir=Hep3Vector(constituents[i].px(),constituents[i].py(),constituents[i].pz());
-	  float dist=constDir.angle(jetDir);
-
-	  ret+=constituents[i].modp()/jet.modp()*dist*dist;
-	}
-      if(ret>0)
-	return sqrt(ret);
-      else
-	return 0;
-    }
 
 
   static float getPhi(const Hep3Vector& axis, const Hep3Vector& input)
