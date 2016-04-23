@@ -22,6 +22,9 @@ class BTreeData
   int tagDecay;
   float tagCorr;
 
+  float D_DecayCorr;
+  float B_DecayCorr;
+
   int leptonId;
 
   int found_2SD;

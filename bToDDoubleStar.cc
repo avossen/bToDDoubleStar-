@@ -78,8 +78,6 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #define PY_DStar_2S 100423
 
 
-
-
 using namespace std;
 
 #include MDST_H
@@ -139,7 +137,6 @@ namespace Belle {
 
   bToDDoubleStar::bToDDoubleStar():smpl_(12345.),cPiPlus("PI+"), cPiNeg("PI-"),cPiZero("PI0"),cKPlus("K+"),cKNeg("K-")
   {
-
     ////---initialaize the meson tree
     mesonMassTree=new TTree("MesonMassTree","MesonMassTree");
     mesonMassTree->Branch("dMass", &dMass, "dMass/F");
@@ -161,8 +158,6 @@ namespace Belle {
       {
 	//	zVals[i]=0;
       }
-
-
 
     histoRecD0Spect=new TH1D("Recd0Spect","Recd0Spect",100,1.5,2.0);
     histoRecDSpect=new TH1D("RecdSpect","RecdSpect",100,1.5,2.0);
@@ -208,7 +203,7 @@ namespace Belle {
 
     const double eler(3.499218);//energies of l, h beam
     const double eher(7.998213);
-
+    calcBRCorrection();
 
     //gives -999
     //double eler=BeamEnergy::E_LER();
@@ -2000,124 +1995,199 @@ namespace Belle {
 
   void bToDDoubleStar::computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other)
   {
+
+    float mc;
+    float data;
+    float error;
     //Km Pip
     if(Km==1&& Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==0&& other==0)
       {
+	mc=0.0382;
+	data=0.0388;
+	error=0.0005;
 
       }
     //km pip pi0
     if(Km==1&& Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.130811;
+	data=0.139;
+	error=0.005;
 
       }
     //Km Pip Pip Pim
     if(Km==1&& Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
-
+	mc=0.0708693;
+	data=0.0808;
+	error=0.002;
       }
-    //ks  pip pim
+    //ks pip pim
     if(Km==0&& Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==0 && other==0)
       {
-
+	mc=0.0283637;
+	data=0.0283;
+	error=0.002;
       }
     //ks pip pim pi0
     if(Km==0 && Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==1 && other==0)
       {
-
+	mc=0.0517367;
+	data=0.052;
+	error=0.006;
       }
     //KsPi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.0113;
+	data=0.0119;
+	error=0.0004;
 
       }
 
     //kp km
     if(Km==1 && Pip==0 && Pim==0 && Ks==0 && Kp==1 && Pi0==0 && other==0)
       {
-
+	mc=0.0039;
+	data=0.00396;
+	error=0.00008;
       }
     //pip pim 
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
-
-
+	mc=0.0014;
+	data=0.001402;
+	error=0.000026;
       }
     //ks ks
     if(Km==0 && Pip==0 && Pim==0 && Ks==2 && Kp==0 && Pi0==0 && other==0)
       {
-
+	mc=0.0004;
+	data=0.00017;
+	error=0.00004;
       }
     //pi0 pi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==0 && Kp==0 && Pi0==2 && other==0)
       {
-
+	mc=0.0008;
+	data=0.00082;
+	error=0.000035;
       }
     //km pip pip
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	mc=0.0950633;
+	data=0.0913;
+	error=0.0019;
       }
     //km pip pip pi0
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.0601865;
+	data=0.0599;
+	error=0.0018;
       }
 
     //ks pip
     if(Km==0 && Pip==1 && Pim==0 && Ks==1 && Kp==0 && Pi0==0 && other==0)
       {
+	mc=0.0147;
+	data=0.0147;
+	error=0.0007;
       }
 
     //ks pip pi0
     if(Km==0 && Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.0650925;
+	data=0.0699;
+	error=0.0027;
       }
     //kp km pip
     if(Km==1 && Pip==1 && Pim==0 && Ks==0 && Kp==1 && Pi0==0 && other==0)
       {
+	mc=0.00905861;
+	data=0.00954;
+	error=0.00026;
       }
     //ks kp
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==1 && Pi0==0 && other==0)
       {
+	mc=0.00295;
+	data=0.00283;
+	error=0.00016;
       }
     //ks pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	mc=0.0315685;
+	data=0.0312;
+	error=0.0011;
       }
     //km pip pip pim pi0
     if(Km==1 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.0398269;
+	data=0.042;
+	error=0.004;
       }
-    //pip  pim pi0
+    //pip pim pi0
 
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+
+	mc=0.0139744;
+	data=0.0143;
+	error=0.0006;
       }
 
     //pip pim pi0 pi0
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==2 && other==0)
       {
+	mc=0.00528788;
+	data=0.01;
+	error=0.0009;
+
       }
 
     //pip pip pim pi0
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+
+	mc=0.0115474;
+	data=0.0113;
+	error=0.0008;
+
       }
 
     //ks pi0 pi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==0 && Pi0==2 && other==0)
       {
+	mc=0.00927935;
+	data=0.0091;
+	error=0.0011;
       }
 
     //pip pi0
     if(Km==0 && Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	mc=0.0026;
+	data=0.00119;
+	error=0.00006;
       }
     //pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	mc=0.0037091;
+	data=0.00318;
+	error=0.00018;
       }
     //km pip pip pip pim
     if(Km==1 && Pip==3 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	mc=0.00620297;
+	data=0.0056;
+	error=0.0005;
       }
 
 
@@ -3020,89 +3090,89 @@ namespace Belle {
       br_Decays[br_sig_D0]=1;
     if(lund==PY_D)
       br_Decays[br_sig_D]=1;
-  if(lund==PY_DStar)
-    br_Decays[br_sig_DStar]=1;
-  if(lund==PY_DStar0)
-    br_Decays[br_sig_DStar0]=1;
-  if(lund==10413)
-    br_Decays[br_sig_D1]=1;
-  if(PY_DStar_2==lund)
-    br_Decays[br_sig_D2]=1;
-  if(lund==20413)
-    br_Decays[br_sig_D1Prime]=1;
-  if(PY_DStar0Plus==lund)
-    br_Decays[br_sig_D0Star]=1;
-  if(PY_D_10==lund)
-    br_Decays[br_sig_D10]=1;
-  if(PY_DStar_20==lund)
-    br_Decays[br_sig_D20]=1;
-  if(20423==lund)
-    br_Decays[br_sig_D1Prime0]=1;
-  if(PY_DStar_00)
-    br_Decays[br_sig_D0Star0]=1;
-  ///////
+    if(lund==PY_DStar)
+      br_Decays[br_sig_DStar]=1;
+    if(lund==PY_DStar0)
+      br_Decays[br_sig_DStar0]=1;
+    if(lund==10413)
+      br_Decays[br_sig_D1]=1;
+    if(PY_DStar_2==lund)
+      br_Decays[br_sig_D2]=1;
+    if(lund==20413)
+      br_Decays[br_sig_D1Prime]=1;
+    if(PY_DStar0Plus==lund)
+      br_Decays[br_sig_D0Star]=1;
+    if(PY_D_10==lund)
+      br_Decays[br_sig_D10]=1;
+    if(PY_DStar_20==lund)
+      br_Decays[br_sig_D20]=1;
+    if(20423==lund)
+      br_Decays[br_sig_D1Prime0]=1;
+    if(PY_DStar_00)
+      br_Decays[br_sig_D0Star0]=1;
+    ///////
 
 
-  if(lund==100421|| lund==100411)
-    d_2S=true;
-  if(lund==100423|| lund==100413)
-    dStar_2S=true;
+    if(lund==100421|| lund==100411)
+      d_2S=true;
+    if(lund==100423|| lund==100413)
+      dStar_2S=true;
 
-  if(lund==PY_D || lund==PY_D0)
-    {
-      numD++;
-      return true;
-    }
-  if(lund==PY_DStar || lund==PY_DStar0)
-    {
-      //don't add D decay products to number of pions etc...
-      numDStar++;
-      return true;
-    }
+    if(lund==PY_D || lund==PY_D0)
+      {
+	numD++;
+	return true;
+      }
+    if(lund==PY_DStar || lund==PY_DStar0)
+      {
+	//don't add D decay products to number of pions etc...
+	numDStar++;
+	return true;
+      }
 
-  if(lund==PY_PI) 
-    {
-      numPions++;
-      return true;
-    }
-  if(lund==PY_K)
-    {
-      numKaons++;
-      return true;
-    }
+    if(lund==PY_PI) 
+      {
+	numPions++;
+	return true;
+      }
+    if(lund==PY_K)
+      {
+	numKaons++;
+	return true;
+      }
 
-  if(lund==PY_Pi0)
-    {
-      numPi0++;
-      return true;
-    }
-  if(lund==PY_E || lund==PY_Mu|| lund==PY_Tau)
-    {
-      numLeptons++;
-      return true;
-    }
+    if(lund==PY_Pi0)
+      {
+	numPi0++;
+	return true;
+      }
+    if(lund==PY_E || lund==PY_Mu|| lund==PY_Tau)
+      {
+	numLeptons++;
+	return true;
+      }
 
-  if(lund==PY_NuE || lund==PY_NuMu|| lund==PY_NuTau)
-    {
+    if(lund==PY_NuE || lund==PY_NuMu|| lund==PY_NuTau)
+      {
 
-      numNu++;
+	numNu++;
 
-      return true;
-    }
-  if(lund==2112 || lund==2212)
-    {
-      numBaryons++;
-      return true;
-    }
-  if(daughters->size()<=0)
-    {
-      return true;
-    }    
-  for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
-    {
-      findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S,br_Decays);
-    }
-}
+	return true;
+      }
+    if(lund==2112 || lund==2212)
+      {
+	numBaryons++;
+	return true;
+      }
+    if(daughters->size()<=0)
+      {
+	return true;
+      }    
+    for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
+      {
+	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S,br_Decays);
+      }
+  }
 
 
 
@@ -4160,33 +4230,72 @@ namespace Belle {
     return ret;
   }
 
-
   float bToDDoubleStar::getBRCorrection()
+  {
+
+  }
+  float bToDDoubleStar::calcBRCorrection()
   {
     //differentiate in MC and data
     //need to correct for Dlnu and the hadronic D decay
 
+
     //DStarlNu
+    mcFactors[br_sig_DStar]=0.0533;
+    dataFactors[br_sig_DStar]=0.0493;
+    dataFactorError[br_sig_DStar]=0.0011;
 
     //DStar0lNu
+    mcFactors[br_sig_DStar0]=0.0579;
+    dataFactors[br_sig_DStar0]=0.0569;
+    dataFactorError[br_sig_DStar0]=0.0019;
 
     //DlNu
+    mcFactors[br_sig_D]=0.0219;
+    dataFactors[br_sig_D]=0.0219;
+    dataFactorError[br_sig_D]=0.0012;
+
     //D0lNu
-
+    mcFactors[br_sig_D0]=0.0213;
+    dataFactors[br_sig_D0]=0.0227;
+    dataFactorError[br_sig_D0]=0.001;
     //D1 lNu
+
+    mcFactors[br_sig_D1]=0.0074;
+ dataFactors[br_sig_D1]=0.0074;
+ dataFactorError[br_sig_D1]=0.0011;
     //D2 lNu
-
+    mcFactors[br_sig_D2]=0.0036;
+    dataFactors[br_sig_D2]=0.0047;
+    dataFactorError[br_sig_D2]=0.0017;
     //D1Prime lNu
-
+    mcFactors[br_sig_D1Prime]=0.002;
+    dataFactors[br_sig_D1Prime]=0.0026;
+    dataFactorError[br_sig_D1Prime]=0.0009;
     //D0Star lNu
-
+    mcFactors[br_sig_D0Star]=0.0084;
+    dataFactors[br_sig_D0Star]=0.0052;
+    dataFactorError[br_sig_D0Star]=0.0022;
     //D10 lNu
-
+    mcFactors[br_sig_D10]=0.0074;
+    dataFactors[br_sig_D10]=0.0074;
+    dataFactorError[br_sig_D10]=0.0011;
     //D20 lNu
-
-    //D1Prime lnu
-
+    mcFactors[br_sig_D20]=0.0036;
+    dataFactors[br_sig_D20]=0.0047;
+    dataFactorError[br_sig_D20]=0.0017;
+    //D1Prime0 lnu
+    mcFactors[br_sig_D1Prime0]=0.002;
+    dataFactors[br_sig_D1Prime0]=0.0026;
+    dataFactorError[br_sig_D1Prime0]=0.0009;
     //D0 Star0 lnu
+    mcFactors[br_sig_D0Star0]=0.0084;
+    dataFactors[br_sig_D0Star0]=0.0052;
+    dataFactorError[br_sig_D0Star0]=0.0022;
+
+    /////calculate the D factors    
+
+
 
 
 

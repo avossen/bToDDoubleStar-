@@ -48,6 +48,7 @@ public:
 
   //should get the tree data info
   float getBRCorrection();
+  float calcBRCorrection();
   float getFFCorrection();
 
   // begin_run function
@@ -228,6 +229,16 @@ private:
     int dDecay;
     int foundDDoubleStarDecay;
     int allDTracksFound;
+    float mcFactors[12];
+    float dataFactors[12];
+    float dataFactorError[12];
+    float overallCorrFactors[12];
+
+
+    float dDecayFactorsMC[25];
+    float dDecayFactorsData[25];
+    float dDecayFactorsDataErrors[25];
+
 
 
     bool foundSinglePionDecay;
