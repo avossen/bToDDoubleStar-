@@ -161,23 +161,23 @@ static int getBin(vector<float>& b1, float value)
   int br_sig_D1Prime0LNu;
   int br_sig_D0Star0LNu;
   
-  int br_sig_D0;
-  int br_sig_D;
+static const int br_sig_D0=0;
+static const  int br_sig_D=1;
 
-  int br_sig_DStar;
-  int br_sig_DStar0;
+static const  int br_sig_DStar=2;
+static const  int br_sig_DStar0=3;
 
-  int br_sig_D1;
-  int br_sig_D2;
+static const  int br_sig_D1=4;
+static const  int br_sig_D2=5;
 
-  int br_sig_D1Prime;
-  int br_sig_D0Star;
+static const  int br_sig_D1Prime=6;
+static const  int br_sig_D0Star=7;
 
-  int br_sig_D10;
-  int br_sig_D20;
+static const  int br_sig_D10=8;
+static const  int br_sig_D20=9;
   
-  int br_sig_D1Prime0;
-  int br_sig_D0Star0;
+static const  int br_sig_D1Prime0=10;
+static const  int br_sig_D0Star0=11;
 
 
     //
@@ -238,6 +238,9 @@ private:
     float dDecayFactorsMC[25];
     float dDecayFactorsData[25];
     float dDecayFactorsDataErrors[25];
+
+    double  D_BR_CorrectionFactor;
+    double B_BR_CorrectionFactor;
 
 
 

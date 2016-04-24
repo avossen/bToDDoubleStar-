@@ -66,6 +66,8 @@ public:
     addFieldF("mBTag");
     addFieldF("logProb");
     addFieldF("tagCorr");
+    addFieldF("D_DecayCorr");
+    addFieldF("B_DecayCorr");
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
@@ -158,6 +160,8 @@ public:
       (*(float*)treeData[index++])=data->mBTag;
       (*(float*)treeData[index++])=data->logProb;
       (*(float*)treeData[index++])=data->tagCorr;
+      (*(float*)treeData[index++])=data->D_DecayCorr;
+      (*(float*)treeData[index++])=data->B_DecayCorr;
 
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;

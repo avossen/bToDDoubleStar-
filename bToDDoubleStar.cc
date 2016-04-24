@@ -1,4 +1,4 @@
-const bool PRINT=true;
+const bool PRINT=false;
 const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include <iomanip>
 #include "mdst/findKs.h"
@@ -145,7 +145,7 @@ namespace Belle {
     mesonMassTree->Branch("foundDDoubleStarDecay",&foundDDoubleStarDecay,"foundDDoubleStarDecay/I");
     mesonMassTree->Branch("allDTracksFound",&allDTracksFound,"allDTracksFound/I");
     ///end 
-
+    calcBRCorrection();
 
     m_mc=false;
 #ifdef MC
@@ -203,7 +203,7 @@ namespace Belle {
 
     const double eler(3.499218);//energies of l, h beam
     const double eher(7.998213);
-    calcBRCorrection();
+
 
     //gives -999
     //double eler=BeamEnergy::E_LER();
@@ -383,47 +383,46 @@ namespace Belle {
 
     ///add the decays for which we want to do branching ratio and FF corrections
     br_sig_D0LNu=0;
-    br_sig_D0=0;
+    //    br_sig_D0=0;
     br_sig_DLNu=0;
-    br_sig_D=1;
+
 
     br_sig_DStarLNu=0;
-    br_sig_DStar=2;
+
     br_sig_DStar0LNu=0;
-    br_sig_DStar0=3;
+
     
     //10413 -->PY_D_1
     br_sig_D1LNu=0;
-    br_sig_D1=4;
+
 
     //415 PY_DSTAR_2
     br_sig_D2LNu=0;
-    br_sig_D2=5;
+
 
     //20413
     br_sig_D1PrimeLNu=0;
-    br_sig_D1Prime=6;
+
 
     //10411# PY_DStar0Plus 
     br_sig_D0StarLNu=0;
-    br_sig_D0Star=7;
+
 
     //10423 PY_D_10 
     br_sig_D10LNu=0;
-    br_sig_D10=8;
+
 
     //425  PY_DStar_20
     br_sig_D20LNu=0;
-    br_sig_D20=9;
+
 
     //pythia 20423
     br_sig_D1Prime0LNu=0;
-    br_sig_D1Prime0=10;
+
     //10421 PY_DStar_00 
     br_sig_D0Star0LNu=0;
-    br_sig_D0Star0=11;
     //---
-    int br_sigs[11];
+    int br_sigs[12];
 
     found_2SD=false;
     found_2SD_Star=false;
@@ -703,7 +702,6 @@ namespace Belle {
 
       }
 
-  
 
     //    cout <<"there are " << mdst_chr_Mgr.size() << " charge tracks in mdst_chr " <<endl;
     for(Mdst_charged_Manager::iterator chr_it=mdst_chr_Mgr.begin();chr_it!=mdst_chr_Mgr.end();chr_it++)
@@ -890,6 +888,18 @@ namespace Belle {
 	//default pion, good enough
 	//	if(!positivelyIdentified)
 	//	  continue;
+
+	//------>
+	// do mis pid weighting for charged particles which we id'ed by now
+	//pi0 and ks misid later...
+	if(m_mc)
+	  {
+	    Gen_hepevt hepEvt=get_hepevt(*chr_it);  
+	    hepEvt.get_ID();
+	    p->pType().lund();
+	  }
+
+
 
 	double dr,dz, refitPx, refitPy, refitPz;
 	//	Momentum mom=p->momentum();
@@ -1958,30 +1968,47 @@ namespace Belle {
 
   bool bToDDoubleStar::getDDecayProducts(const Gen_hepevt gen_it, int& Kp, int& Km, int& Ks, int& Pip, int& Pim, int& Pi0, int& other)
   {
-    genhep_vec* daughters=getDaughters(gen_it);
+
+
     int lund=gen_it.idhep();
-    if(daughters->size()<=0)
+    if(lund==211)
       {
+      Pip++;
+      return true;}
+    if(lund ==-211)
+      {
+	Pim++;return true;}
+    if(lund==321)
+      {
+      Kp++;
+      return true;
+      }
+    if(lund==-321)
+      {
+	Km++;
+	return true;
+      }
+    if(lund==111)
+      {
+      Pi0++;
+      return true;
+      }
+    if(lund==310)
+      {
+	Ks++;
+	return true;
+      }
+    genhep_vec* daughters=getDaughters(gen_it);
+    //none of the above and not a photon
+    if(fabs(lund)!=211 && fabs(lund)!=321 && lund !=111  && lund !=310 && lund !=22 && daughters->size()<=0)    
+      {
+	other++;
 	return true;
       }
 
-    if(lund==211)
-      Pip++;
-    if(lund ==-211)
-      Pim++;
-    if(lund==321)
-      Kp++;
-    if(lund==-321)
-      Km++;
-    if(lund==111)
-      Pi0++;
-    if(lund==310)
-      Ks++;
-
-    //none of the above and not a photon
-    if(fabs(lund)!=211 && fabs(lund)!=321 && lund !=111 && lund!=311 && lund !=22)    
+    if(daughters->size()<=0)
       {
-	other++;
+	return true;
       }
 
 
@@ -1995,16 +2022,18 @@ namespace Belle {
 
   void bToDDoubleStar::computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other)
   {
-
-    float mc;
-    float data;
+    float mc=1.0;
+    float data=1.0;
     float error;
+    bool found=false;
+    //    cout << "D decay: Kp: " << Kp << " Km: "<< Km <<" Ks: "<< Ks <<" Pip: " << Pip << " pim: " << Pim << " pi0: " << Pi0 << " other: "<< other <<endl;
     //Km Pip
     if(Km==1&& Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==0&& other==0)
       {
 	mc=0.0382;
 	data=0.0388;
 	error=0.0005;
+	found=true;
 
       }
     //km pip pi0
@@ -2013,7 +2042,7 @@ namespace Belle {
 	mc=0.130811;
 	data=0.139;
 	error=0.005;
-
+	found=true;
       }
     //Km Pip Pip Pim
     if(Km==1&& Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2021,6 +2050,7 @@ namespace Belle {
 	mc=0.0708693;
 	data=0.0808;
 	error=0.002;
+	found=true;
       }
     //ks pip pim
     if(Km==0&& Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==0 && other==0)
@@ -2028,6 +2058,7 @@ namespace Belle {
 	mc=0.0283637;
 	data=0.0283;
 	error=0.002;
+	found=true;
       }
     //ks pip pim pi0
     if(Km==0 && Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==1 && other==0)
@@ -2035,6 +2066,7 @@ namespace Belle {
 	mc=0.0517367;
 	data=0.052;
 	error=0.006;
+	found=true;
       }
     //KsPi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==0 && Pi0==1 && other==0)
@@ -2042,6 +2074,7 @@ namespace Belle {
 	mc=0.0113;
 	data=0.0119;
 	error=0.0004;
+	found=true;
 
       }
 
@@ -2051,6 +2084,7 @@ namespace Belle {
 	mc=0.0039;
 	data=0.00396;
 	error=0.00008;
+	found=true;
       }
     //pip pim 
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2058,6 +2092,7 @@ namespace Belle {
 	mc=0.0014;
 	data=0.001402;
 	error=0.000026;
+	found=true;
       }
     //ks ks
     if(Km==0 && Pip==0 && Pim==0 && Ks==2 && Kp==0 && Pi0==0 && other==0)
@@ -2065,6 +2100,7 @@ namespace Belle {
 	mc=0.0004;
 	data=0.00017;
 	error=0.00004;
+	found=true;
       }
     //pi0 pi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==0 && Kp==0 && Pi0==2 && other==0)
@@ -2072,6 +2108,7 @@ namespace Belle {
 	mc=0.0008;
 	data=0.00082;
 	error=0.000035;
+	found=true;
       }
     //km pip pip
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2079,6 +2116,7 @@ namespace Belle {
 	mc=0.0950633;
 	data=0.0913;
 	error=0.0019;
+	found=true;
       }
     //km pip pip pi0
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
@@ -2086,6 +2124,7 @@ namespace Belle {
 	mc=0.0601865;
 	data=0.0599;
 	error=0.0018;
+	found=true;
       }
 
     //ks pip
@@ -2094,6 +2133,7 @@ namespace Belle {
 	mc=0.0147;
 	data=0.0147;
 	error=0.0007;
+	found=true;
       }
 
     //ks pip pi0
@@ -2102,6 +2142,7 @@ namespace Belle {
 	mc=0.0650925;
 	data=0.0699;
 	error=0.0027;
+	found=true;
       }
     //kp km pip
     if(Km==1 && Pip==1 && Pim==0 && Ks==0 && Kp==1 && Pi0==0 && other==0)
@@ -2109,6 +2150,7 @@ namespace Belle {
 	mc=0.00905861;
 	data=0.00954;
 	error=0.00026;
+	found=true;
       }
     //ks kp
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==1 && Pi0==0 && other==0)
@@ -2116,6 +2158,7 @@ namespace Belle {
 	mc=0.00295;
 	data=0.00283;
 	error=0.00016;
+	found=true;
       }
     //ks pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2123,6 +2166,7 @@ namespace Belle {
 	mc=0.0315685;
 	data=0.0312;
 	error=0.0011;
+	found=true;
       }
     //km pip pip pim pi0
     if(Km==1 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
@@ -2130,6 +2174,7 @@ namespace Belle {
 	mc=0.0398269;
 	data=0.042;
 	error=0.004;
+	found=true;
       }
     //pip pim pi0
 
@@ -2139,6 +2184,7 @@ namespace Belle {
 	mc=0.0139744;
 	data=0.0143;
 	error=0.0006;
+	found=true;
       }
 
     //pip pim pi0 pi0
@@ -2147,17 +2193,16 @@ namespace Belle {
 	mc=0.00528788;
 	data=0.01;
 	error=0.0009;
-
+	found=true;
       }
 
     //pip pip pim pi0
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
-
 	mc=0.0115474;
 	data=0.0113;
 	error=0.0008;
-
+	found=true;
       }
 
     //ks pi0 pi0
@@ -2166,6 +2211,7 @@ namespace Belle {
 	mc=0.00927935;
 	data=0.0091;
 	error=0.0011;
+	found=true;
       }
 
     //pip pi0
@@ -2174,6 +2220,7 @@ namespace Belle {
 	mc=0.0026;
 	data=0.00119;
 	error=0.00006;
+	found=true;
       }
     //pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2181,6 +2228,7 @@ namespace Belle {
 	mc=0.0037091;
 	data=0.00318;
 	error=0.00018;
+	found=true;
       }
     //km pip pip pip pim
     if(Km==1 && Pip==3 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
@@ -2188,8 +2236,23 @@ namespace Belle {
 	mc=0.00620297;
 	data=0.0056;
 	error=0.0005;
+	found=true;
       }
 
+    //factor to correct mc with
+    if(found)
+      {
+	if(mc==0 || data==0)
+	  {
+	    cout <<"corr fact data or mc equals zero " << data << " " << mc <<endl;
+	    exit(1);
+	  }
+	corrFact=data/mc;
+      }
+    else
+      {
+	corrFact=1.0;
+      }
 
   }
 
@@ -2470,10 +2533,10 @@ namespace Belle {
 	  }
       }
 
-    double D_BR_CorrectionFactor=1.0;
-
+    D_BR_CorrectionFactor=1.0;
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
+	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
 	//for D decay branching ratio corrections
 	if(isAnyD(geantID))
 	  {
@@ -2484,8 +2547,11 @@ namespace Belle {
 	    int Pim=0;
 	    int Pi0=0;
 	    int other=0;
+	    //	    cout <<"found d, lets look at decay " <<endl;
+	    //	    recursivePrint(*gen_it,"");
 	    getDDecayProducts(*gen_it, Kp,Km,Ks,Pip,Pim,Pi0,other);
-	    computeD_BR_CorrectionFactor(D_BR_CorrectionFactor,Kp,Km,Ks,Pip,Pim,Pi0,other);
+	    double tmpCorrFact=1.0;
+	    computeD_BR_CorrectionFactor(tmpCorrFact,Kp,Km,Ks,Pip,Pim,Pi0,other);
 	    //and check for conjugate decay
 	    int tmp=Km;
 	    Km=Kp;
@@ -2493,7 +2559,11 @@ namespace Belle {
 	    tmp=Pim;
 	    Pip=Pim;
 	    Pim=tmp;
-	    computeD_BR_CorrectionFactor(D_BR_CorrectionFactor,Kp,Km,Ks,Pip,Pim,Pi0,other);
+	    //	    cout <<"and conjugate.. " <<endl;
+	    computeD_BR_CorrectionFactor(tmpCorrFact,Kp,Km,Ks,Pip,Pim,Pi0,other);
+	    //might be several D's...
+	    D_BR_CorrectionFactor*=tmpCorrFact;
+	    //	    cout <<"overall D correction factor " <<D_BR_CorrectionFactor <<endl;
 
 	  }
       }
@@ -2535,8 +2605,8 @@ namespace Belle {
 
 	    int temp=0;
 	    for(int i=0;i<=br_sig_D0Star0;i++){temp+=br_sigs[i];};
-	    if(temp>1)
-	      cout <<" found more than one D(*(*)) in the decay! " << endl;
+	    //	    if(temp>1)
+	    //	      cout <<" found more than one D(*(*)) in the decay! " << endl;
 
 	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S && br_sigs[br_sig_D0]==1)
 	      {
@@ -2585,9 +2655,6 @@ namespace Belle {
 	      {
 		br_sig_D0Star0LNu=true;
 	      }
-
-
-
 	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
 	      {
 		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumDStar==0)
@@ -2727,7 +2794,10 @@ namespace Belle {
 
 
 		  }
-	      
+		B_BR_CorrectionFactor=getBRCorrection();
+		treeData.B_DecayCorr=B_BR_CorrectionFactor;
+		treeData.D_DecayCorr=D_BR_CorrectionFactor;
+		//		cout <<"B cor factor: "<< B_BR_CorrectionFactor << " D: "<< D_BR_CorrectionFactor <<endl;
 
 		float mom=sqrt((*it)->PX()*(*it)->PX()+(*it)->PY()*(*it)->PY()+(*it)->PZ()*(*it)->PZ());
 		if(daughterId==12|| daughterId==14|| daughterId==16)
@@ -3108,7 +3178,7 @@ namespace Belle {
       br_Decays[br_sig_D20]=1;
     if(20423==lund)
       br_Decays[br_sig_D1Prime0]=1;
-    if(PY_DStar_00)
+    if(PY_DStar_00==lund)
       br_Decays[br_sig_D0Star0]=1;
     ///////
 
@@ -4232,20 +4302,126 @@ namespace Belle {
 
   float bToDDoubleStar::getBRCorrection()
   {
+    float mc=1.0;
+    float data=1.0;
+    float error;
+
+    if(br_sig_D0LNu)
+      {
+
+	mc=mcFactors[br_sig_D0];
+	data= dataFactors[br_sig_D0];
+	error=dataFactorError[br_sig_D0];
+      }
+    if(br_sig_DLNu)
+      {
+
+	mc= mcFactors[br_sig_D];
+	data= dataFactors[br_sig_D];
+	error=dataFactorError[br_sig_D];
+      }
+    if(br_sig_DStarLNu)
+      {
+
+	mc= mcFactors[br_sig_DStar];
+	data= dataFactors[br_sig_DStar];
+	error=dataFactorError[br_sig_DStar];
+      }
+
+    if(br_sig_DStar0LNu)
+      {
+
+	mc= mcFactors[br_sig_DStar0];
+	data= dataFactors[br_sig_DStar0];
+	error=dataFactorError[br_sig_DStar0];
+      }
+    if(br_sig_D1LNu)
+      {
+
+	mc= mcFactors[br_sig_D1];
+	data= dataFactors[br_sig_D1];
+	error=dataFactorError[br_sig_D1];
+      }
+    if(br_sig_D2LNu)
+      {
+
+	mc= mcFactors[br_sig_D2];
+	data= dataFactors[br_sig_D2];
+	error=dataFactorError[br_sig_D2];
+      }
+
+    if(br_sig_D1PrimeLNu)
+      {
+
+	mc= mcFactors[br_sig_D1Prime];
+	data= dataFactors[br_sig_D1Prime];
+	error=dataFactorError[br_sig_D1Prime];
+      }
+    if(br_sig_D0StarLNu)
+      {
+	mc= mcFactors[br_sig_D0Star];
+	data= dataFactors[br_sig_D0Star];
+	error=dataFactorError[br_sig_D0Star];
+      }
+    if(br_sig_D10LNu)
+      {
+
+	mc= mcFactors[br_sig_D10];
+	data= dataFactors[br_sig_D10];
+	error=dataFactorError[br_sig_D10];
+      }
+    if(br_sig_D20LNu)
+      {
+
+	mc= mcFactors[br_sig_D20];
+	data= dataFactors[br_sig_D20];
+	error=dataFactorError[br_sig_D20];
+      }
+    if(br_sig_D1Prime0LNu)
+      {
+
+	mc= mcFactors[br_sig_D1Prime0];
+	data= dataFactors[br_sig_D1Prime0];
+	error=dataFactorError[br_sig_D1Prime0];
+      }
+    if(br_sig_D0Star0LNu)
+      {
+	mc= mcFactors[br_sig_D0Star0];
+	data= dataFactors[br_sig_D0Star0];
+	error=dataFactorError[br_sig_D0Star0];
+      }
+    if(!mc || !data)
+      {
+	cout <<"B Br no mc or data: "<< mc << data <<endl;
+	for(int i=0;i<12;i++)
+	  {
+	    cout <<" mc corr " << i <<": " << mcFactors[i] <<" data; "<< dataFactors[i] <<endl;
+	  }
+	exit(1);
+      }
+    return data/mc;
+
+
 
   }
   float bToDDoubleStar::calcBRCorrection()
   {
     //differentiate in MC and data
     //need to correct for Dlnu and the hadronic D decay
-
+    cout <<"calculating br corrections" << endl;
 
     //DStarlNu
     mcFactors[br_sig_DStar]=0.0533;
     dataFactors[br_sig_DStar]=0.0493;
     dataFactorError[br_sig_DStar]=0.0011;
+    cout <<" dstar: "<< br_sig_DStar <<endl;
+    for(int i=0;i<12;i++)
+      {
+	cout <<"first mc: " << mcFactors[i] << " data: "<< dataFactors[i] <<endl;
+      }
 
     //DStar0lNu
+    cout <<" dstar0: "<< br_sig_DStar0 <<endl;
     mcFactors[br_sig_DStar0]=0.0579;
     dataFactors[br_sig_DStar0]=0.0569;
     dataFactorError[br_sig_DStar0]=0.0019;
@@ -4294,11 +4470,11 @@ namespace Belle {
     dataFactorError[br_sig_D0Star0]=0.0022;
 
     /////calculate the D factors    
-
-
-
-
-
+    cout <<"calced everything, : ";
+    for(int i=0;i<12;i++)
+      {
+	cout <<"mc: " << mcFactors[i] << " data: "<< dataFactors[i] <<endl;
+      }
     return 1.0;
   }
 
