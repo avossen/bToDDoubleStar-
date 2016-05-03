@@ -4,6 +4,7 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include "mdst/findKs.h"
 #include "bToDDoubleStar/mc.h"  //one central place to put the define mc
 #include "tables/ekpfullrecon_panther.h"
+#include "tables/mctype.h"
 #include "event/BelleEvent.h"
 #include "particle/Particle.h"
 #include "particle/utility.h"
@@ -433,10 +434,40 @@ namespace Belle {
     vector<int> decIds;
     vector<int> pids;
     int bMesonId;
+
     foundSinglePionDecay=false;
     noDRec=false;
+
+    if(!validRun)
+      return;
+    int evtNr;
+    int runNr;
+    int expNr; 
+
+    /////for xcheck
+    AnaBrecon brecon;
+    evtNr=Belle_event_Manager::get_manager().begin()->EvtNo();
+    runNr=Belle_event_Manager::get_manager().begin()->RunNo();
+    expNr=Belle_event_Manager::get_manager().begin()->ExpNo();
+    //    cout <<" evt: " << evtNr << " runNr " << runNr <<endl;
+    kinematics::runNr=runNr;
+    kinematics::evtNr=evtNr;
+
+    float XSectionWeight=1.0;
+    float lumiWeight=1.0;
+
+    //pid efficiencies only on the signal side (tag correction is done separately)
+    float pidWeight=1.0;
+    //br correction done independently if signal or tag side
+    float brWeight=1.0;
+
     if(m_mc)
       {
+	Mctype_Manager &mctype_m = Mctype_Manager::get_manager();
+	int mc_type = mctype_m.begin()->type();
+	XSectionWeight=pidCorrections.getXSectionCorrection(m_mc,mc_type);
+	lumiWeight=pidCorrections.getLumiCorrection(expNr);
+
 	//find b meson id in the simulation
    
 	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay);
@@ -469,18 +500,7 @@ namespace Belle {
     //    const double _tag_Mbc=5.25;
 
     //    cout <<" valid run " << validRun<<endl;
-    if(!validRun)
-      return;
-    int evtNr;
-    int runNr;
- 
-    /////for xcheck
-    AnaBrecon brecon;
-    evtNr=Belle_event_Manager::get_manager().begin()->EvtNo();
-    runNr=Belle_event_Manager::get_manager().begin()->RunNo();
-    //    cout <<" evt: " << evtNr << " runNr " << runNr <<endl;
-    kinematics::runNr=runNr;
-    kinematics::evtNr=evtNr;
+    //    kinematics::expNr=expNr;
 
     treeData.recBToDlNuPiPi=0;
 
@@ -614,7 +634,7 @@ namespace Belle {
     //    cout <<"looking at b cand" <<endl;
 
     //    if(bestBcand.mdstVee2())
-    //      cout <<"b has vee2 " <<endl;
+    //      csout <<"b has vee2 " <<endl;
     //    if(bestBcand.mdstCharged())
     //      cout <<"b has charged " <<endl;
 
@@ -674,7 +694,7 @@ namespace Belle {
 	  continue;
 
 	/// also quality checks?
-
+	//the below is to make sure that none of the daughter particles are part of the tag or of a Ks that we already found
 	if(chargedIds.find(vee_it->chgd(0).get_ID())!=chargedIds.end()){
 	  //	  cout <<"charged daugher of Ks is part of tag " <<endl;
 	  continue;
@@ -694,6 +714,7 @@ namespace Belle {
 	    histoKs->Fill(p->mass());
 	    chargedIds.insert(vee_it->chgd(0));
 	    chargedIds.insert(vee_it->chgd(1));
+	    pidWeight*=pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr);
 	  }
 	else
 	  {
@@ -711,6 +732,8 @@ namespace Belle {
 	  //	 	  cout <<"charged track is part of track " <<endl;
 	  continue;
 	}
+
+
 	//      cout <<"looking at " <<(*chr_it).p(0) <<" " << (*chr_it).p(1) <<" " << (*chr_it).p(2) <<endl;
 
 	double m_mass=m_pi;
@@ -885,21 +908,10 @@ namespace Belle {
 	  {
 	    //	cout <<"e_id : "<< e_id <<" mu_id: "<< mu_id <<endl;
 	  }
+      
 	//default pion, good enough
 	//	if(!positivelyIdentified)
 	//	  continue;
-
-	//------>
-	// do mis pid weighting for charged particles which we id'ed by now
-	//pi0 and ks misid later...
-	if(m_mc)
-	  {
-	    Gen_hepevt hepEvt=get_hepevt(*chr_it);  
-	    hepEvt.get_ID();
-	    p->pType().lund();
-	  }
-
-
 
 	double dr,dz, refitPx, refitPy, refitPz;
 	//	Momentum mom=p->momentum();
@@ -920,7 +932,20 @@ namespace Belle {
 	  }
 
 
+	//------>
+	// do mis pid weighting for charged particles which we id'ed by now
+	//note that particles that are part of the tag, and that shouldn't be weighted are not part of this loop (we checked earlier)
+	//pi0 and ks misid later...
+
 	Particle* p=new Particle(*chr_it,string(ptypName));
+	if(m_mc)
+	  {
+	    Gen_hepevt hepEvt=get_hepevt(*chr_it);  
+	    pidWeight*=pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr);
+	  }
+
+
+
 	  
 	//	cout <<"mom px: "<< mom.p().px()<<" py: " << mom.p().py() <<" pz: "<< mom.p().pz() <<" t: "<< mom.p().t()<<endl;
 	//	cout <<"par px: "<< p->p().px()<<" py: " << p->p().py() <<" pz: "<< p->p().pz() <<" t: "<< p->p().t()<<endl;
@@ -1060,7 +1085,7 @@ namespace Belle {
 	pi0Candidates.push_back(p);
 
 	//      v_drAll.push_back();
-
+	pidWeight*=pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr);
       }
     ///now we should have all the candidates..
     //    cout <<"we have " << chargedPiCandidates.size() << " pions " << chargedKCandidates.size() <<" kaons " << pi0Candidates.size() <<" pi0 " << KsCandidates.size() <<" Ks " << leptonCandidates.size() <<"leptons " << otherChargedTracks.size() <<" others " <<endl;
@@ -2521,6 +2546,7 @@ namespace Belle {
 	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
 	if(geantID==PY_B0 || geantID==PY_B)
 	  {
+
 	    float distanceToBestB= (gen_it->PX()-bestBPx)*(gen_it->PX()-bestBPx)+(gen_it->PY()-bestBPy)*(gen_it->PY()-bestBPy)+(gen_it->PZ()-bestBPz)*(gen_it->PZ()-bestBPz);
 	    //	    cout <<"distance to best b is: "<< distanceToBestB << " (before " << bestDistance <<" ) " <<endl;
 	    if(distanceToBestB<bestDistance|| bestDistance<0)

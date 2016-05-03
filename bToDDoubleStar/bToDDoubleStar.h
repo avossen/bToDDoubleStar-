@@ -16,8 +16,9 @@
 #include "bToDDoubleStar/AuxFunc.h"
 #include "bToDDoubleStar/TreeSaver.h"
 #include <vector>
-
 #include <iostream>
+
+#include "bToDDoubleStar/PIDCorrections.h"
 
 using namespace std;
 
@@ -96,21 +97,6 @@ public:
   bool getDDecayProducts(const Gen_hepevt, int& Kp, int& Km, int& Ks, int& Pip, int& Pim, int& Pi0, int& other);
   void computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other);
 
-
-static int getBin(vector<float>& b1, float value)
-{
-  int coo1=-1;
-  for(int i=0;i<b1.size();i++)
-    {
-      if(value<=b1[i])
-	{
-	  coo1=i;
-	  break;
-	}
-    }
-  return coo1;
-}
-
   static float getPhi(const Hep3Vector& axis, const Hep3Vector& input)
     {
       return AuxFunc::getPhi(axis,input);
@@ -130,6 +116,8 @@ static int getBin(vector<float>& b1, float value)
   Ptype cKPlus;
   Ptype cKNeg;
  protected:
+
+  PIDCorrections pidCorrections;
 
   bool sig_FoundDDoubleStar;
   bool sig_FoundD;
