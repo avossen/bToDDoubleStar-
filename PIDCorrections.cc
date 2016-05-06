@@ -280,12 +280,12 @@ bool PIDCorrections::loadLeptonTables()
   float sys2;
 
 
-  ifstream lidFile1("eid_data-mc_corr_svd1.dat");
-  ifstream lidFile2("eid_data-mc_corr_exp31-65-caseB.dat");
-  ifstream lidFile3("muid_data-mc_corr_svd1.dat");
-  ifstream lidFile4("muid_data-mc_corr_exp31-39-45a-caseB.dat");
-  ifstream lidFile5("muid_data-mc_corr_exp41-49-caseB.dat");
-  ifstream lidFile6("muid_data-mc_corr_exp51-65-caseB.dat");
+  ifstream lidFile1("/home/belle/vossen/myProjects/bToDDoubleStar-/eid_data-mc_corr_svd1.dat");
+  ifstream lidFile2("/home/belle/vossen/myProjects/bToDDoubleStar-/eid_data-mc_corr_exp31-65-caseB.dat");
+  ifstream lidFile3("/home/belle/vossen/myProjects/bToDDoubleStar-/muid_data-mc_corr_svd1.dat");
+  ifstream lidFile4("/home/belle/vossen/myProjects/bToDDoubleStar-/muid_data-mc_corr_exp31-39-45a-caseB.dat");
+  ifstream lidFile5("/home/belle/vossen/myProjects/bToDDoubleStar-/muid_data-mc_corr_exp41-49-caseB.dat");
+  ifstream lidFile6("/home/belle/vossen/myProjects/bToDDoubleStar-/muid_data-mc_corr_exp51-65-caseB.dat");
 
   string str;
   ifstream* files[6];
@@ -382,8 +382,8 @@ bool PIDCorrections::loadKIDTables()
   string str;
 
 
-  ifstream kidFile1("kidTable_SVD1.data");
-  ifstream kidFile2("kidTable_SVD2.data");
+  ifstream kidFile1("/home/belle/vossen/myProjects/bToDDoubleStar-/kidTable_SVD1.data");
+  ifstream kidFile2("/home/belle/vossen/myProjects/bToDDoubleStar-/kidTable_SVD2.data");
 
   ifstream* files[2];
   files[0]=&kidFile1;
@@ -426,9 +426,9 @@ bool PIDCorrections::loadKIDTables()
 		  //fake rate, not efficiency
 		  iKind=1;
 		}
-	      cout <<"read: " << str <<endl;
-	      cout <<" iPid: "<< iPid << " iKind : "<< iKind <<" thetaBin: " << thetaBin <<" plabBin: "<< pLabBin << " ratio: "<< mRatio <<" uncert: "<< mRatioUncert <<" sys: "<< mRatioSys <<endl;
-	      cout <<"iSVD: " << iSvd <<endl;
+	      //	      cout <<"read: " << str <<endl;
+	      //	      cout <<" iPid: "<< iPid << " iKind : "<< iKind <<" thetaBin: " << thetaBin <<" plabBin: "<< pLabBin << " ratio: "<< mRatio <<" uncert: "<< mRatioUncert <<" sys: "<< mRatioSys <<endl;
+	      //	      cout <<"iSVD: " << iSvd <<endl;
 	      //fit not good or no good stats
 	      if(flag)
 		{

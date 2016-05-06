@@ -68,6 +68,10 @@ public:
     addFieldF("tagCorr");
     addFieldF("D_DecayCorr");
     addFieldF("B_DecayCorr");
+    addFieldF("PIDCorrection");
+    addFieldF("CrossSectionLumiCorrection");
+
+
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
@@ -162,7 +166,10 @@ public:
       (*(float*)treeData[index++])=data->tagCorr;
       (*(float*)treeData[index++])=data->D_DecayCorr;
       (*(float*)treeData[index++])=data->B_DecayCorr;
-
+      //      cout <<"saving d decay corr : "<< data->D_DecayCorr <<" b decay corr: "<< data->B_DecayCorr<<endl;
+      (*(float*)treeData[index++])=data->pidCorrection;
+      (*(float*)treeData[index++])=data->CrossSectionLumiCorrection;
+      //      cout <<"saving corrections: tag: " << data->tagCorr <<", D: "<< data->D_DecayCorr <<" B: " << data->B_DecayCorr<<", pid: "<< data->pidCorrection <<", cross section and lumi: "<< data->CrossSectionLumiCorrection<<endl;
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
       (*(int*)treeData[index++])=data->foundAnyDDoubleStar;

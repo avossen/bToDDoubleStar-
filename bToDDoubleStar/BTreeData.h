@@ -25,6 +25,9 @@ class BTreeData
   float D_DecayCorr;
   float B_DecayCorr;
 
+  float pidCorrection;
+  float CrossSectionLumiCorrection;
+
   int leptonId;
 
   int found_2SD;
@@ -90,6 +93,78 @@ class BTreeData
 
   int size;
 
+  //call at the beginning of the event to make sure that we don't have any stale data in the structure
+  void initData()
+  {
+
+    foundDPiPi=-1;
+    recBToDlNuPiPi=-1;
+  //the two pion channel
+    recDDoubleStar=-1;
+  //only one pion
+   recBToDlNuPi=-1;
+   logProb=-1;
+
+  bestBCharge=-1;
+  systemCharge=-1;
+
+   deltaETag=-1;
+   mBTag=-1;
+ tagId=-1;
+  tagDecay=-1;
+   tagCorr=-1;
+
+   D_DecayCorr=-1;
+   B_DecayCorr=-1;
+   pidCorrection=-1;
+   CrossSectionLumiCorrection=-1;
+
+   leptonId=-1;
+
+   found_2SD=-1;
+   found_2SD_Star=-1;
+   mcDecaySignature=-1;
+   recDecaySignature=-1;
+
+  //more generic, decay signature
+   foundAnyDDoubleStar=-1;
+   sig_numPions=-1;
+   sig_numLeptons=-1;
+   sig_numKaons=-1;
+   sig_numBaryons=-1;
+   sig_numPi0=-1;
+   sig_numD=-1;
+   sig_numDStar=-1;
+
+   sig_dStar_2S=-1;
+   sig_d_2S=-1;
+
+   sigDLNu=-1;
+   sigDPiLNu=-1;
+   sigDPiPiLNu=-1;
+
+   sigDStarLNu=-1;
+   sigDStarPiLNu=-1;
+   sigDStarPiPiLNu=-1;
+
+   leptonP=-1;
+   foundLepton=-1;
+   piPlusP=-1;
+   foundPiPlus=-1;
+   piMinusP=-1;
+   foundPiMinus=-1;
+   dMesonP=-1;
+   foundDMeson=-1;
+   dPID=-1;
+
+   tagOverlapFractionCharged=-1;
+   tagOverlapFractionPi0=-1;
+   foundDDoubleStarInMC=-1;
+   daughterDPID=-1;
+
+  size=0;
+
+  }
 
 
 };

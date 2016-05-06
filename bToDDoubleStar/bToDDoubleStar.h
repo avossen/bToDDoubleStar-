@@ -55,7 +55,8 @@ public:
   // begin_run function
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
-  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S,int* br_sigs);
+  bool findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numNu,int* br_sigs);
+  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
   void saveTree();
@@ -227,8 +228,8 @@ private:
     float dDecayFactorsData[25];
     float dDecayFactorsDataErrors[25];
 
-    double  D_BR_CorrectionFactor;
-    double B_BR_CorrectionFactor;
+    float  D_BR_CorrectionFactor;
+    float B_BR_CorrectionFactor;
 
 
 

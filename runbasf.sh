@@ -25,7 +25,7 @@ path add_module main gibbetnit
 path add_condition main >:0:analysis
 path add_condition main <=:0:KILL
 
-module put_parameter bToDDoubleStar rfname\/people/voss771/bToDDoubleStar/mcEx55.root
+module put_parameter bToDDoubleStar rfname\mcEx55.root
 #module put_parameter fix_mdst Make_pi0_option\2
 #module put_parameter fix_mdst Make_pi0_lower_limit\0.12
 #module put_parameter fix_mdst Make_pi0_upper_limit\0.15
