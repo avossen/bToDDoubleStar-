@@ -293,10 +293,6 @@ class PIDCorrections
     mcLumi[63] = 32.163;
     mcLumi[65] = 37.173;
 
-
-
-
-
 };
 
   float getWeight(int mcLund, int dataLund, float mom, float theta, int expNr, int runNr);

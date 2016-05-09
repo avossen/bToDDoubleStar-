@@ -69,7 +69,7 @@ public:
     addFieldF("D_DecayCorr");
     addFieldF("B_DecayCorr");
     addFieldF("PIDCorrection");
-    addFieldF("CrossSectionLumiCorrection");
+    addFieldF("CrossSectionLumiCorrection");  
 
 
     addFieldI("found_2SD");
