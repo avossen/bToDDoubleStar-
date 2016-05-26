@@ -46,7 +46,6 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 
 //#include "exkvertexfitter... " for more than 1 to 2 decay
 
-
 #include <iostream>
 
 #define PY_E 11

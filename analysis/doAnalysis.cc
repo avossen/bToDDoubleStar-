@@ -33,16 +33,16 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 
 
 
-
+void addCorrections(char* buffer);
 void fitFractions(TTree* tree, TH1F** summedComponents, int numPions,int leptonId,bool dataTree=false);
 
 
 int main(int argc, char** argv)
 {
 
-  withPIDCorrection=true;
+  withPIDCorrection=false;
   withLumiCorrection=false;
-  withBCorrection=true;
+  withBCorrection=false;
   withDCorrection=false;
 
   gStyle->SetOptFit(1111);
@@ -123,6 +123,12 @@ int main(int argc, char** argv)
   //void getMCComponents(TTree** trees, TH1F** components, int numPions, int leptonId);
   int leptonId=0; //meaning both
   int leptonIds[]={0,11,13}; //meaning both
+  mcChain->Add(fileNameMixed);
+  mcChain->Add(fileNameCharged);
+  mcChain->Add(fileNameUds);
+  mcChain->Add(fileNameCharm);
+
+
   for(int i=0;i<3;i++)
     {
       leptonId=leptonIds[i];
@@ -130,15 +136,8 @@ int main(int argc, char** argv)
       //  cout <<"calling save stack.." <<endl;
       saveStack(components,summedComponents,numPions,leptonId);
 
-
       //the 'other BB doesn't seem to be used...'
       fitFractions(trees,summedComponents,10, numPions,leptonId,false);
-
-
-      mcChain->Add(fileNameMixed);
-      mcChain->Add(fileNameCharged);
-      mcChain->Add(fileNameUds);
-      mcChain->Add(fileNameCharm);
       doSidebandComparison(mcChain,trees[4],leptonId,numPions,lowerSidebandMC,upperSidebandMC,lowerSidebandData,upperSidebandData);
 
       (*upperSidebandData)->Sumw2();
@@ -146,11 +145,11 @@ int main(int argc, char** argv)
       (*upperSidebandMC)->Sumw2();
       (*lowerSidebandMC)->Sumw2();
 
-      //double scaleUpper=(*upperSidebandMC)->GetEntries()/((double)((*upperSidebandData)->GetEntries()));
-      //      double scaleLower=(*lowerSidebandMC)->GetEntries()/((double)((*lowerSidebandData)->GetEntries()));
+      double scaleUpper=(*upperSidebandMC)->GetEntries()/((double)((*upperSidebandData)->GetEntries()));
+      double scaleLower=(*lowerSidebandMC)->GetEntries()/((double)((*lowerSidebandData)->GetEntries()));
 
-double      scaleUpper=5.0;
- double scaleLower=5.0;
+            scaleUpper=5.0;
+       scaleLower=5.0;
 
       cout <<"scaleUpper: "<< scaleUpper <<" lower: "<< scaleLower <<endl;
 
@@ -174,12 +173,14 @@ double      scaleUpper=5.0;
       (*upperSidebandData)->Draw("SAME");
       c.cd(3);
       TH1F* lowerSidebandMCDiv=(TH1F*)(*lowerSidebandMC)->Clone("lowerSBMCDiv");
+      lowerSidebandMCDiv->Sumw2();
       lowerSidebandMCDiv->Divide(*lowerSidebandData);
       lowerSidebandMCDiv->Draw();
       lowerSidebandMCDiv->Fit("pol0");
       c.cd(4);
 
       TH1F* upperSidebandMCDiv=(TH1F*)(*upperSidebandMC)->Clone("upperSBMCDiv");
+      upperSidebandMCDiv->Sumw2();
       upperSidebandMCDiv->Divide(*upperSidebandData);
       upperSidebandMCDiv->Draw();
       upperSidebandMCDiv->Fit("pol0");
@@ -192,8 +193,13 @@ double      scaleUpper=5.0;
       (*sameChargeData)->Sumw2();
       (*chargeNeutralMC)->Sumw2();
       (*chargeNeutralData)->Sumw2();
-      double scaleSameCharge=(*sameChargeMC)->GetEntries()/((double)((*sameChargeData)->GetEntries()));
-      double scaleChargeNeutral=(*chargeNeutralMC)->GetEntries()/((double)((*chargeNeutralData)->GetEntries()));
+      //      double scaleSameCharge=(*sameChargeMC)->GetEntries()/((double)((*sameChargeData)->GetEntries()));
+      //      double scaleChargeNeutral=(*chargeNeutralMC)->GetEntries()/((double)((*chargeNeutralData)->GetEntries()));
+
+      double scaleSameCharge=5.0;
+      double scaleChargeNeutral=5.0;
+
+
       cout <<"scalesameCharge: "<< scaleSameCharge <<" chargeNeutral: "<< scaleChargeNeutral <<endl;
 
       (*sameChargeData)->Scale(scaleSameCharge);
@@ -215,12 +221,14 @@ double      scaleUpper=5.0;
 
 
       TH1F* sameChargeMCDiv=(TH1F*)(*sameChargeMC)->Clone("sameChargeMCDiv");
+      sameChargeMCDiv->Sumw2();
       sameChargeMCDiv->Divide(*sameChargeData);
       sameChargeMCDiv->Draw();
       sameChargeMCDiv->Fit("pol0");
       c.cd(4);
 
       TH1F* chargeNeutralMCDiv=(TH1F*)(*chargeNeutralMC)->Clone("chargeNeutralMCDiv");
+      chargeNeutralMCDiv->Sumw2();
       chargeNeutralMCDiv->Divide(*chargeNeutralData);
       chargeNeutralMCDiv->Draw();
       chargeNeutralMCDiv->Fit("pol0");
@@ -250,10 +258,10 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
 
   char* allLegendNames[11];
 
-  fileNames[0]=new char[200];
-  fileNames[1]=new char[200];
-  fileNames[2]=new char[200];
-  fileNames[3]=new char[200];
+  fileNames[0]=new char[500];
+  fileNames[1]=new char[500];
+  fileNames[2]=new char[500];
+  fileNames[3]=new char[500];
 
   THStack all;
   TH1F* hContinuum=new TH1F("continuum","continuum",numBins,lowerCut,upperCut);
@@ -405,7 +413,6 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
       addCorrections(buffer);
       sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",buffer,upperCut,lowerCut,numPions);
     }
-
   sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1 && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
   //sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1)",buffer);
   sprintf(bufferDDStarPi,"%s && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1&& !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);

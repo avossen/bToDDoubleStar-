@@ -15,7 +15,7 @@
 #include <cstdlib>
 #include <set>
 #include "TFractionFitter.h"
-
+#include <sstream>
 
 using namespace std;
 
@@ -40,29 +40,27 @@ bool withDCorrection;
 TColor* glColorTable[11];
 void addCorrections(char* buffer)
 {
-  sprintf(buffer,"");
+  stringstream str;
   //D_DecayCorr*B_DecayCorr*PIDCorrection*CrossSectionLumiCorrection
 
   if(withPIDCorrection)
     {
-      sprintf(buffer,"PIDCorrection*");
+      str << "PIDCorrection*";
     }
   if(withDCorrection)
     {
-      cout <<" adding d correction: " << buffer <<endl;
-      sprintf(buffer,"D_DecayCorr* %s ",buffer);
-      cout <<"fuffer is now: "<< buffer <<endl;
+      str <<"D_DecayCorr*";
+
     }
   if(withBCorrection)
     {
-      cout <<" adding B correction: " << buffer <<endl;
-      sprintf(buffer,"B_DecayCorr* %s ",buffer);
-      cout <<"buffer is now: "<< buffer <<endl;
+      str <<"B_DecayCorr*";
     }
   if(withLumiCorrection)
     {
-      sprintf(buffer,"CrossSectionLumiCorrection* %s",buffer);
+      str <<"CrossSectionLumiCorrection*";
     }
+  sprintf(buffer,"%s",str.str().c_str());
 };
 
 /*
@@ -74,7 +72,7 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
   char histoName[2009];
   char drawCommand[2000];
   char buffer[2000];
-
+  char corrBuffer[2000];
 
 
   int minCounts=10;
@@ -83,21 +81,26 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
 
     TH1F *data;                              //data histogram
     int treeCount=4;
+    addCorrections(corrBuffer);
     if(dataTree)
       {
 	treeCount=1;
       }
     if(leptonId!=0)
 	  {
-	    addCorrections(buffer);
-	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer,upperCut,lowerCut,numPions,leptonId);
+	    if(dataTree)
+	      sprintf(buffer,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+	    else
+	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
 		  //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
 	  }
 	else
 	  {
-	    addCorrections(buffer);
-	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer,upperCut,lowerCut,numPions);
+	    if(dataTree)
+	      sprintf(buffer,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+	    else
+	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
 	  }
 
@@ -227,21 +230,20 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 
   char bufferAll[2000];
   char bufferNoSelection[2000];
-
-
+  char corrBuffer[2000];
+  addCorrections(corrBuffer);
 
 
   if(leptonId!=0)
     {
-        addCorrections(buffer);
-      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",buffer,upperCut,lowerCut,numPions,leptonId);
+
+      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d  ",numPions,leptonId);
 
     }
   else
     {
-      addCorrections(buffer);
-      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",buffer,upperCut,lowerCut,numPions);
+      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
       //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",numPions);
     }
 
@@ -534,82 +536,94 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   char upperSBSelection[2000];
   char lowerSBSelection[2000];
 
+  char upperSBSelectionData[2000];
+  char lowerSBSelectionData[2000];
+
   char histoName[200];
   char drawCommand[200];
-  char buffer[200];
+  char buffer[2000];
+  addCorrections(buffer);
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
-        addCorrections(buffer);
       sprintf(upperSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
-        
-        addCorrections(buffer);
+
+      sprintf(upperSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+     
       sprintf(lowerSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      sprintf(lowerSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-        addCorrections(buffer);
       sprintf(upperSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      sprintf(upperSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
         
-        addCorrections(buffer);
       sprintf(lowerSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      sprintf(lowerSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
+  cout <<"upper selection: "<< upperSBSelection << " lower selection : "<< lowerSBSelection<<endl;
   sprintf(histoName,"upperSideBandMC_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,upperSidebandBottom,upperSidebandTop);
   int counts=mcTree->Draw(drawCommand,(char*)upperSBSelection);
-  cout <<"got " << counts <<" counts from mc upperSB selected " <<endl;
+  cout <<"got " << counts <<" counts from mc upperSB selected for lepton ID "<< leptonId <<endl;
   *upperSidebandMC=(TH1F*)gDirectory->Get(histoName);
 
   sprintf(histoName,"lowerSideBandMC_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,lowerSidebandBottom,lowerSidebandTop);
-   counts=mcTree->Draw(drawCommand,(char*)lowerSBSelection);
+  counts=mcTree->Draw(drawCommand,(char*)lowerSBSelection);
   cout <<"got " << counts <<" counts from mc lowerSB selected " <<endl;
   *lowerSidebandMC=(TH1F*)gDirectory->Get(histoName);
 
   sprintf(histoName,"upperSideBandData_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,upperSidebandBottom,upperSidebandTop);
   cout <<"about to get data with string: "<< drawCommand <<endl;
-   counts=dataTree->Draw(drawCommand,(char*)upperSBSelection);
+  counts=dataTree->Draw(drawCommand,(char*)upperSBSelectionData);
   cout <<"got " << counts <<" counts from data upperSB selected " <<endl;
   *upperSidebandData=(TH1F*)gDirectory->Get(histoName);
 
   sprintf(histoName,"lowerSideBandData_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,lowerSidebandBottom,lowerSidebandTop);
-   counts=dataTree->Draw(drawCommand,(char*)lowerSBSelection);
+  counts=dataTree->Draw(drawCommand,(char*)lowerSBSelectionData);
   cout <<"got " << counts <<" counts from data lowerSB selected " <<endl;
   *lowerSidebandData=(TH1F*)gDirectory->Get(histoName);
-
 }
-
 
 void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numPions, TH1F** sameChargeMC, TH1F** chargeNeutralMC,  TH1F** sameChargeData, TH1F** chargeNeutralData)
 {
   char sameChargeSelection[2000];
   char chargeNeutralSelection[2000];
+
+  //since we put the tagCorr in there, we have to have a string w/o for the data
+  char sameChargeSelectionData[2000];
+  char chargeNeutralSelectionData[2000];
   char histoName[200];
   char drawCommand[2000];
-  char buffer[200];
+  char buffer[2000];
+  addCorrections(buffer);
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
-        addCorrections(buffer);
-      sprintf(sameChargeSelection,"%s tagCorr*CrossSectionLumiCorrection*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+
+      sprintf(sameChargeSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
       
-        addCorrections(buffer);
         sprintf(chargeNeutralSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+
+      sprintf(sameChargeSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      
+        sprintf(chargeNeutralSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-         addCorrections(buffer);
       sprintf(sameChargeSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
-        
-        addCorrections(buffer);
       sprintf(chargeNeutralSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+
+      sprintf(sameChargeSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
+      sprintf(chargeNeutralSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   sprintf(histoName,"sameChargeMC_numPions_%d_leptonId_%d",numPions,leptonId);
@@ -626,13 +640,13 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numP
 
   sprintf(histoName,"sameChargeData_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsWS,lowerCut,upperCut);
-  counts=dataTree->Draw(drawCommand,(char*)sameChargeSelection);
+  counts=dataTree->Draw(drawCommand,(char*)sameChargeSelectionData);
   cout <<"got " << counts <<" counts from data same charge selected " <<endl;
   *sameChargeData=(TH1F*)gDirectory->Get(histoName);
 
   sprintf(histoName,"neutralChargeData_numPions_%d_leptonId_%d",numPions,leptonId);
   sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsWS,lowerCut,upperCut);
-  counts=dataTree->Draw(drawCommand,(char*)chargeNeutralSelection);
+  counts=dataTree->Draw(drawCommand,(char*)chargeNeutralSelectionData);
   cout <<"got " << counts <<" counts from data charge neutral selected " <<endl;
   *chargeNeutralData=(TH1F*)gDirectory->Get(histoName);
 
