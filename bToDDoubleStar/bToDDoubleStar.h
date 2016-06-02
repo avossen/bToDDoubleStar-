@@ -120,6 +120,10 @@ public:
 
   PIDCorrections pidCorrections;
 
+  int evtNr;
+  int runNr;
+  int expNr; 
+
   bool sig_FoundDDoubleStar;
   bool sig_FoundD;
   int sig_numPions;

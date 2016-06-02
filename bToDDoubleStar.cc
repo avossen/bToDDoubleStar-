@@ -48,6 +48,7 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 
 #include <iostream>
 
+#define PY_GAMMA 22
 #define PY_E 11
 #define PY_Tau 15
 #define PY_NuE 12
@@ -439,9 +440,8 @@ namespace Belle {
 
     if(!validRun)
       return;
-    int evtNr;
-    int runNr;
-    int expNr; 
+
+
 
     /////for xcheck
     AnaBrecon brecon;
@@ -949,6 +949,10 @@ namespace Belle {
 	if(m_mc)
 	  {
 	    Gen_hepevt hepEvt=get_hepevt(*chr_it);  
+	    if((fabs(p->pType().lund()==PY_E) || fabs(p->pType().lund())==PY_MU )&& (p->pType().lund()!=hepEvt.idhep()))
+	      {
+		cout <<"thought we had " << p->pType().lund() <<" but we have " << hepEvt.idhep()<<endl;
+	      }
 	    pidWeight*=pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr);
 	    //	  if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
 	  if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
@@ -1480,6 +1484,41 @@ namespace Belle {
 		    bestMNu2=mNu2;
 		    bestDIndex=treeData.size;
 		  }
+
+		////
+
+		//		sprintf(bufferAll,"%s && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2 || sig_DLNu || sig_DPiLNu|| sig	\
+		//_DPiPiLNu || sig_DStarLNu || sig_DStarPiLNu|| sig_DStarPiPiLNu) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
+
+		////-------
+		////investigate the 'otherBB' shape in the pion==1 case which is a bit too signal like for my taste...
+		if(numPions==1 && fabs(mNu2)< 0.2 && leptonCandidates.size()==1 && recDecaySignature)
+		  {
+		    if(!sig_FoundDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2)
+		      {
+		      if(!sigDLNu && !sigDPiLNu && !sigDPiPiLNu && !sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu)
+			{
+			  cout<<" other BB background evt nr "<< evtNr << " run: "<< runNr  << endl;
+			  Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+			  for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+			    {
+			      if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
+				{
+				recursivePrint(*gen_it,"");
+				}
+			      
+			    }
+			  
+			}
+		      }
+		    
+		  }
+	      
+		////-------
+		////-------
+		////-------
+	      
+
 		if(PRINT)
 		  {
 
@@ -1560,7 +1599,7 @@ namespace Belle {
 		treeData.size++;
 		//		cout <<"got mNu: " << mNu <<endl;
 
-
+	      
 		//////////
 		//		if(treeData.recBToDlNuPi==1 || treeData.recBToDlNuPiPi==1)
 		//		if(treeData.foundDPiPi==1 || foundSinglePionDecay)
@@ -1707,7 +1746,7 @@ namespace Belle {
 
 	  }
       }
-
+  
 
     //    cout <<"done combining.." <<endl;
     if(bestDIndex>=0 && bestDIndex < 1000)
@@ -1734,6 +1773,7 @@ namespace Belle {
     //    if(!mcDecaySignature && !foundRecDecay)
     //      cout <<"haven't found anything " <<endl;
     exitEvent();
+  
   }
 
                                                                                                                                                                                                      
@@ -2566,6 +2606,8 @@ else
     overlapFractionCharged=.0;
     overlapFractionPi0=.0;
     Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+
+    //////////////////////////
     //find best b
     float bestDistance=-1;
     Gen_hepevt_Manager::iterator bestB;
@@ -2586,7 +2628,7 @@ else
 
 	  }
       }
-
+    ////////////////////
     D_BR_CorrectionFactor=1.0;
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
@@ -2628,6 +2670,10 @@ else
 
 	  }
       }
+    //////////////////////
+    /////////////done D_BR correction
+    /////////////////////////
+
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
 	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
@@ -2676,7 +2722,7 @@ else
 	    for(int i=0;i<=br_sig_D0Star0;i++){temp+=br_sigs[i];};
 	    //	    if(temp>1)
 	    //	      cout <<" found more than one D(*(*)) in the decay! " << endl;
-
+	  
 	    if(tempNumNu==1 && tempNumLeptons==1 && tempNumPions==0&& tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0)
 	      {
 		if( br_sigs[br_sig_D0]==1)
@@ -2725,8 +2771,30 @@ else
 		    br_sig_D0Star0LNu=true;
 		  }
 	      }
+	  
+
+	    ///probably have to set the other stuff to zero again..
+	    //
+	    tempNumLeptons=0;
+	    tempNumPions=0;
+	    tempNumKaons=0;
+	    tempNumPi0=0;
+	    tempNumBaryons=0;
+	    tempNumD=0;
+	    tempNumDStar=0;
+	    tempNumDStar2S=false;
+	    tempNumDStarD2S=false;
+	    tempNumNu=0;
+
 	    //and the other call for the 'regular' decay signature search where we trace the D decays
 	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S);
+
+	    if(evtNr==74850 &&  runNr== 879)
+	      {
+		cout <<"tmpNumD: " << tempNumD << " numNu: " << tempNumNu <<" numLep: " << tempNumLeptons<<" Kaons? "<< tempNumKaons;
+		cout  <<" pions? " << tempNumPions <<" pi0? " << tempNumPi0 << " baryons? " << tempNumBaryons;
+		cout  <<" D*? " << tempNumDStar  <<" D**? " << tempFoundDDoubleStar <<" D*(2S)? " << tempNumDStar2S <<" D*(2SD) ? " << tempNumDStarD2S << endl;
+	      }
 
 	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
 	      {
@@ -2806,6 +2874,7 @@ else
 		sig_numD=0;
 		sig_numDStar=0;
 	      }
+	  
 	    bMesonId= gen_it->get_ID();
 	    genhep_vec* daughters=getDaughters(*gen_it);
 	    //don't count gammas..
@@ -3283,6 +3352,11 @@ else
 	return true;
       }
     ///////
+    if(lund==PY_GAMMA)
+      {
+	//don't follow gamma. It can decay into e+e- which artificially increases the lepton count
+	return true;
+      }
 
     if(lund==PY_PI) 
       {
@@ -3368,7 +3442,11 @@ else
 	numKaons++;
 	return true;
       }
-
+    if(lund==PY_GAMMA)
+      {
+	//don't follow gamma. It can decay into e+e- which artificially increases the lepton count
+	return true;
+      }
     if(lund==PY_Pi0)
       {
 	numPi0++;
