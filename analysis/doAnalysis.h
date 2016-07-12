@@ -1,6 +1,8 @@
 #ifndef DO_ANALYSIS_H
 #define DO_ANALYSIS_H
 
+#include <math.h>
+#include "TRandom.h"
 #include "TLegend.h"
 #include "TROOT.h"
 #include "TColor.h"
@@ -18,16 +20,22 @@
 #include <sstream>
 
 using namespace std;
-
+TRandom* rnd;
 int numBinsSB=20;
 int numBinsWS=20;
+char* allLegendNames[11];
 
+enum selectionNames{};
 
 //int numBins=40;
 //float lowerCut=-0.3;
 //float upperCut=0.5;
 
-int numBins=100;
+//int numBins=150;
+int numBins=50;
+//int numBins=100;
+
+//float lowerCut=-0.5;
 float lowerCut=-1.0;
 float upperCut=1.0;
 
@@ -35,7 +43,10 @@ bool withPIDCorrection;
 bool withLumiCorrection;
 bool withBCorrection;
 bool withDCorrection;
-
+float getFitSignal(TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr );
+void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,double signalFraction);
+void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
+void addPoissonNoise(TH1F* h);
 
 TColor* glColorTable[11];
 void addCorrections(char* buffer)
@@ -67,48 +78,164 @@ void addCorrections(char* buffer)
 get the histogram we want to fit from the tree (given numPions and leptonId), fit with the fractions from 'summedComponents'
 
  */
-void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId,bool dataTree)
+void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId,bool dataTree, bool addNoise, TH1D* pulls)
 {
+
+  float templateScaleFactor=1.0;
+  if(dataTree)
+    templateScaleFactor=0.2;
+
+#ifdef MC_TEST
+   templateScaleFactor=0.25;
+#endif
+
+   for(int i=0;i<numComponents;i++)
+     {
+       summedComponents[i]->Sumw2();
+       //       (*summedComponents)->SetFillStyle(1001);
+       summedComponents[i]->Scale(templateScaleFactor);
+
+     }
+   cout <<"using scale factor: "<< templateScaleFactor <<endl;
+  TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
+  cout <<"fit fractions with " << numComponents <<" components"<<endl;
+  char* templateLegendNames[11];
+  for(int i=0;i<11;i++)
+    {
+      templateLegendNames[i]=new char[300];
+    }
+  vector<int> effectiveComponentsIndices;
   char histoName[2009];
   char drawCommand[2000];
   char buffer[2000];
   char corrBuffer[2000];
+  int minCounts=0;
+  int fixThresholdCounts=2000;
+  if(leptonId>0)
+    fixThresholdCounts=1000;
+  //set to the pionId 1 to merge components...
+  int oneIdx=-1;
+  ///make new templates that take into account that some contributions look the same, so probably create problems while fittign
+  //same shape combination would be 5 with 7 (only one merger) --> alternatively used 4 mergers 5, 6, 7, 8,9 where all the others have small statistics
+  int numMergers=0;
+  if(numPions==oneIdx)
+    numMergers=1;
+    //    numMergers=4;
 
+  TH1F** templates=new TH1F*[numComponents-numMergers];
 
-  int minCounts=10;
+  //  fillTemplates(templates,summedComponents,templateLegendNames,numPions);
+  cout <<"filling " << numComponents-numMergers << " templates " <<endl;
+
+  if(numPions==oneIdx)
+    {
+      for(int i=0;i<5;i++)
+	{
+	  templates[i]=summedComponents[i];
+	  templateLegendNames[i]=allLegendNames[i];
+	  cout <<"filled template " << i <<endl;
+	}
+      sprintf(buffer,"%s_clonedAgain",summedComponents[5]->GetName());
+      templates[5]=(TH1F*)summedComponents[5]->Clone(buffer);
+      templates[5]->Add(summedComponents[6]);
+      templates[5]->Add(summedComponents[7]);
+      templates[5]->Add(summedComponents[8]);
+      templates[5]->Add(summedComponents[9]);
+
+      sprintf(buffer,"%s plus %s and %s and  %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7],allLegendNames[8], allLegendNames[9]);
+      templates[5]->SetTitle(buffer);
+      sprintf(templateLegendNames[5],"%s",buffer);
+      //            templates[6]=summedComponents[6];
+      //      templateLegendNames[6]=allLegendNames[6];
+      for(int i=10;i<numComponents;i++)
+	{
+	  templates[i-numMergers]=summedComponents[i];
+	  templateLegendNames[i-numMergers]=allLegendNames[i];
+	  cout <<"filling template " << i-numMergers <<endl;
+	}
+    }
+  //  if(numPions==2)
+  else
+    {
+      for(int i=0;i<numComponents;i++)
+	{
+	  templates[i]=summedComponents[i];
+	  templateLegendNames[i]=allLegendNames[i];
+	}
+    }
+
+  //////
+
+  cout <<"did set up " << numComponents-numMergers << " templates" <<endl;
+
+  //to save counts so we can fix the components which have too little counts
+  vector<int> countsOfComponents;
+  vector<int>  indexOfEffComp;
 
   ////from the example on the root web pages..
 
     TH1F *data;                              //data histogram
+    //use first 4 trees (the last one is data)
     int treeCount=4;
     addCorrections(corrBuffer);
     if(dataTree)
       {
 	treeCount=1;
       }
+    cout <<"tree count: " << treeCount <<endl;
     if(leptonId!=0)
 	  {
+		//for the MC_test we still have to do the tag corr....
 	    if(dataTree)
-	      sprintf(buffer,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+	      {
+#ifdef MC_TEST
+      sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+#else
+	      sprintf(buffer,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+#endif
+	      }
 	    else
-	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+	      {
+		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+	      }
 		  //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
-	    
 	  }
 	else
 	  {
 	    if(dataTree)
-	      sprintf(buffer,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+	      {
+
+		//for the MC_test we still have to do the tag corr....
+#ifdef MC_TEST
+		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+#else
+		sprintf(buffer,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+#endif
+	      }
 	    else
-	    sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+	      {
+		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+	      }
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
 	  }
-
+    cout <<" treeCount: " << treeCount <<endl;
     for(int tc=0;tc<treeCount;tc++)
       {
+	cout << " tc: " << tc<< " numPions: "<< numPions<<" leptId: "<< leptonId <<endl;
 	sprintf(histoName,"histo_Data_%d_pions_%d_leptonId_treeNr%d",numPions,leptonId,tc);
+	cout <<"draw command..." <<endl;
 	sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBins,lowerCut,upperCut);
-	int counts=trees[tc]->Draw(drawCommand,(char*)buffer);
+	cout <<" and the actual draw... "<< drawCommand<<"--> >" <<buffer<<endl;
+	int counts=0;
+	if(!dataTree)
+	  {
+	    counts=trees[tc]->Draw(drawCommand,(char*)buffer);
+	  }
+	else
+	  {
+	    //grab last tree which should be the data tree...
+	    counts=trees[4]->Draw(drawCommand,(char*)buffer);
+	  }
 	cout <<"got " << counts <<" counts from data selected " <<endl;
 	if(tc==0)
 	  data=(TH1F*)gDirectory->Get(histoName);
@@ -117,37 +244,74 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
 
 	data->SetFillColor(glColorTable[0]->GetNumber());	
       }
+
+    cout <<" done making data ..  " << endl;
+    double signalFraction=templates[2]->Integral()/data->Integral();
+    cout <<"signal Fraction estimated to be : " << signalFraction<<endl;
+    /////-----------------
+    //void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents)
+    if(addNoise)
+      {
+	for(int nIt=0;nIt<1000;nIt++)
+	  {
+	    performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls,signalFraction);
+	  }
+      }
+    /////////-----------
+
+
+
     TCanvas sampleData;
     data->Draw();
     sampleData.SaveAs("sampleData.png");
 
   int numEffectiveComponents=0;
-  for(int i=0;i<numComponents;i++)
+  for(int i=0;i<numComponents-numMergers;i++)
     {
-      if(summedComponents[i]->GetEntries()>minCounts)
+      //special case of 'other BB' which looks like the signal for some reason...
+      if(templates[i]->GetEntries()>minCounts)
 	{
 	  numEffectiveComponents++;
+	  countsOfComponents.push_back(templates[i]->GetEntries());
+	  indexOfEffComp.push_back(i);
 	}
     }
   cout <<" we have " << numEffectiveComponents<<endl;
   TObjArray *mc = new TObjArray(numEffectiveComponents);        // MC histograms are put in this array
 
-  for(int i=0;i<numComponents;i++)
+  //numpions=1 --> comp 5 and 7 look the same
+  for(int i=0;i<numComponents-numMergers;i++)
     {
-      cout <<"summed compoentent " << i <<" has " << summedComponents[i]->GetEntries() <<" entries" <<endl;
-      if(summedComponents[i]->GetEntries()>minCounts)
+      cout <<"template " << i <<" has " << templates[i]->GetEntries() <<" entries" <<endl;
+      if(templates[i]->GetEntries()>minCounts)
 	{
-	  mc->Add(summedComponents[i]);
+	  mc->Add(templates[i]);
+	  effectiveComponentsIndices.push_back(i);
 	}
-      sprintf(buffer,"mcComponent_%d.png",i);
-      summedComponents[i]->Draw();
+      sprintf(buffer,"mcComponent_%d_leptId_%d_numPion_%d.png",i,leptonId,numPions);
+      templates[i]->Draw();
       sampleData.SaveAs(buffer);
     }
 
   TFractionFitter* fit = new TFractionFitter(data, mc); // initialise
+  fit->GetFitter()->SetPrecision(0.001);
   for(int i=0;i<numEffectiveComponents;i++)
     {
-            fit->Constrain(i,0.0,1.0);               // constrain fraction 1 to be between 0 and 1
+      cout <<" looking at component " << i <<" have " << countsOfComponents[i] << " counts " <<endl;
+      //i = 9 (after merger)is BB background
+      if(countsOfComponents[i]>fixThresholdCounts  && (numPions!=oneIdx || indexOfEffComp[i]!=9))
+	{
+	  //	  cout << "not fixed component " << i << " scale fact: "<< templateScaleFactor*fixThresholdCounts << " counts: "<< countsOfComponents[i] <<endl;
+	  fit->Constrain(i,0.0,1.0);               // constrain fraction 1 to be between 0 and 1
+	  //	  fit->UnConstrain(i);
+	}
+      else
+	{
+
+	  //	  cout << "fixed component " << i << " scale fact: "<< templateScaleFactor*fixThresholdCounts << " counts: "<< countsOfComponents[i] <<endl;
+	  //fit->Constrain(i,1.0,1.0);               ///not enough counts, so fix this component
+	  fit->GetFitter()->FixParameter(i);
+	}
     }
       //                  fit->SetRangeX(1,15);                    // use only the first 15 bins in the fit
   Int_t status = fit->Fit();               // perform the fit
@@ -159,17 +323,136 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
     result->Draw("same");
     sprintf(buffer,"fracFit_numPions_%d_leptonId_%d.png",numPions,leptonId);
     c.SaveAs(buffer);
+    //and do this for all parameters:
+    sprintf(buffer,"fracFitComp_numPions_%d_leptonId_%d.png",numPions,leptonId);
+    THStack* predComponents=new THStack(buffer,buffer);
+    cout <<"fraction fitter has " << fit->GetFitter()->GetNumberFreeParameters() << " free and " << fit->GetFitter()->GetNumberTotalParameters() <<" overall parameters" <<endl;
+
+    //we want to flip the signal (index =2 ) so that it is later
+    int signalIdx=-1;
+
+    for(int i=0;i<numEffectiveComponents;i++)
+      {
+	if(effectiveComponentsIndices[i]!=2)
+	  {
+	    cout <<"component " << i<< " (" << templateLegendNames[effectiveComponentsIndices[i] ] <<") is now : "<< fit->GetFitter()->GetParameter(i)<<endl;
+	    TH1F* mcComp=(TH1F*) fit->GetMCPrediction(i);
+	    cout <<"comp with hist entries: "<< mcComp->GetEntries() <<" and " << templates[effectiveComponentsIndices[i] ]->GetEntries() <<": " << (float)mcComp->GetEntries()/(float)templates[effectiveComponentsIndices[i] ]->GetEntries()<<endl;
+	    cout <<"comp with hist scale: "<< (float)mcComp->GetEntries()/(float)data->GetEntries() <<" and " << (float)templates[effectiveComponentsIndices[i] ]->GetEntries()/(float)data->GetEntries()<<endl;
+	    //	    mcComp->SetFillColorAlpha(1.0);
+	    mcComp->SetFillStyle(1001);
+	    mcComp->SetFillColor(glColorTable[effectiveComponentsIndices[i]]->GetNumber());
+
+	    predComponents->Add(mcComp);
+	    legend->AddEntry(mcComp,templateLegendNames[effectiveComponentsIndices[i]],"f" );
+	  }
+	else
+	  {
+	    signalIdx=i;
+	  }
+      }
+    //add the signal last...
+    if(signalIdx>=0)
+      {
+	TH1F* mcComp=(TH1F*) fit->GetMCPrediction(signalIdx);
+	mcComp->SetFillStyle(1001);
+	mcComp->SetFillColor(glColorTable[2]->GetNumber());
+	predComponents->Add(mcComp);
+	legend->AddEntry(mcComp,templateLegendNames[2],"f" );
+      }
+
+
+    ////
+    if(numPions==1)
+      {
+	if(leptonId==0)
+	  data->GetYaxis()->SetRangeUser(0,6000*templateScaleFactor);
+	else
+	  data->GetYaxis()->SetRangeUser(0,3000*templateScaleFactor);
+      }
+    else
+      {
+	if(leptonId==0)
+	  data->GetYaxis()->SetRangeUser(0,1600*templateScaleFactor);
+	else
+	  data->GetYaxis()->SetRangeUser(0,800*templateScaleFactor);
+      }
+    data->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
+    data->SetTitle("");
+    data->Draw("Ep");
+    predComponents->SetTitle("");
+    //    predComponents->SetStats(0);
+    //    predComponents->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
+    predComponents->Draw("hist same");
+    data->SetLineWidth(2);
+    data->SetStats(0);
+    data->Draw("same Ep");
+    legend->Draw();
+    sprintf(buffer,"predComp_numPions_%d_leptonId_%d.png",numPions,leptonId);
+    c.SaveAs(buffer);
   }
 
 
   ////
 
-
-
-
 }
 
 
+
+
+void loadComponents(TFile* file,TH1F** components, TH1F** summedComponents, int numPions,int leptonId, int numComponents, int numFiles)
+{
+
+  char buffer[2000];
+  for(int iF=0;iF<numFiles;iF++)
+    {
+      for(int b=0;b<numComponents;b++)
+	{
+	  sprintf(buffer,"histo_If_%d_b_%d_numPions_%d_leptonId_%d",iF,b,numPions,leptonId);
+	  components[iF*11+b]=(TH1F*)file->Get(buffer);
+	}
+    }
+
+
+  sprintf(buffer,"continuum_%dLept_%dPions",leptonId,numPions);
+  summedComponents[0]=(TH1F*)file->Get(buffer);
+
+  cout <<"pointer : "<< summedComponents[0]<<endl;
+  sprintf(buffer,"DDStar_%dLept_%dPions",leptonId,numPions);
+  summedComponents[1]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DDStarPi_%dLept_%dPions",leptonId,numPions);
+  summedComponents[2]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DDStarPiPi_%dLept_%dPions",leptonId,numPions);
+  summedComponents[3]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DLnu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[4]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DPiLNu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[5]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DPiPiLNu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[6]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DStarLNu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[7]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DStarPiLNu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[8]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"DStarPiPiLNu_%dLept_%dPions",leptonId,numPions);
+  summedComponents[9]=(TH1F*)file->Get(buffer);
+
+  sprintf(buffer,"OtherBB_%dLept_%dPions",leptonId,numPions);
+  summedComponents[10]=(TH1F*)file->Get(buffer);
+
+  for(int i=0;i<11;i++)
+    {
+      cout <<"loaded component " << i << " with counts " << summedComponents[i]->GetEntries()<<endl;
+    }
+}
 
 //trees: the input trees for the 4 MC files, components: The components for each file, so 4*11, summedComponents: The same, but summed over files
 void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, int numPions,int leptonId)
@@ -179,8 +462,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   //just getting the MC components, so only looking at 4 files
   int numFiles=4;
   int numComponents=11;
-
-  
 
   char buffer[2000];
   sprintf(buffer,"continuum_%dLept_%dPions",leptonId,numPions);
@@ -237,13 +518,12 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   if(leptonId!=0)
     {
 
-      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+      sprintf(buffer,"%s tagCorr*(recDecaySignature  && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d  ",numPions,leptonId);
-
     }
   else
     {
-      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
+      sprintf(buffer,"%s tagCorr*(recDecaySignature   && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
       //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",numPions);
     }
 
@@ -261,9 +541,11 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   sprintf(bufferDStarPilNu,"%s  && sig_DStarPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu)",buffer);
   sprintf(bufferDStarPiPilNu,"%s  && sig_DStarPiPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu)",buffer);
 
+  //weird, the test for sig_X that come first seem useless.
   sprintf(bufferAll,"%s && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2 || sig_DLNu || sig_DPiLNu|| sig_DPiPiLNu || sig_DStarLNu || sig_DStarPiLNu|| sig_DStarPiPiLNu) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
 
   sprintf(bufferNoSelection,"%s)",buffer);
+      //sprintf(bufferNoSelection,"%s)",bufferAll);
   //    sprintf(bufferAll,"%s)",buffer);
 
 
@@ -366,17 +648,17 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
   int printOrder[]={0,10,1,3,4,5,9,7,8,6,2};
   if(numPions==1)
     {
-      printOrder[10]=3;
-      printOrder[3]=2;
-      printOrder[9]=4;
-      printOrder[4]=6;
+      //      printOrder[10]=3;
+      //      printOrder[3]=2;
+      //      printOrder[9]=4;
+      //      printOrder[4]=6;
     }
 
   cout <<"in save stack.. " <<endl;
   //this is for "all", i.e. not mixed, charged separation
   THStack all;
   char* legendNames[11];
-  char* allLegendNames[11];
+
   int numFiles=4;
   char* fileNames[numFiles];
   for(int i=0;i<numFiles;i++)
@@ -387,8 +669,8 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 
   for(int i=0;i<11;i++)
     {
-      legendNames[i]=new char [200];
-      allLegendNames[i]=new char[200];
+      legendNames[i]=new char [300];
+      allLegendNames[i]=new char[300];
     }
 
 
@@ -455,7 +737,8 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 	  //  if(counts>0)
 	    {
 	      //other bb is not 10
-	      if(index==10)
+	      //used to be 10... but 10 is bufferAll, so all but everything else, I think 0 is the no selection (so all)...
+	      if(index==0)
 		{
 		  //		  stacks[iF]->Add(result,"nostack");
 		  //		legend->AddEntry(result,legendNames[b],"f");
@@ -487,7 +770,9 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 
       TCanvas c2;
       sprintf(stackName,"Stack_%s_%d pions_%d_leptonId",fileNames[iF],numPions,leptonId);
-      stacks[iF]->SetTitle(stackName);
+      //      stacks[iF]->SetTitle(stackName);
+      stacks[iF]->SetTitle("");
+      //      stacks[iF]->SetStats(0);
       stacks[iF]->Draw();
       legend->Draw();
       c2.Update();
@@ -509,7 +794,9 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
     }
   TCanvas c;
   sprintf(buffer,"All_%d_pions_%d_leptonId",numPions,leptonId);
-  all.SetTitle(buffer);
+  //  all.SetTitle(buffer);
+  all.SetTitle("");
+  //  all.SetStats(0);
   all.Draw();
   legend->Draw();
   c.Update();
@@ -546,22 +833,22 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
-      sprintf(upperSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+      sprintf(upperSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
 
-      sprintf(upperSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+      sprintf(upperSBSelectionData," (recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId);
      
-      sprintf(lowerSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
-      sprintf(lowerSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      sprintf(lowerSBSelection,"%s tagCorr*(recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      sprintf(lowerSBSelectionData," (recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-      sprintf(upperSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
-      sprintf(upperSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      sprintf(upperSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      sprintf(upperSBSelectionData,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
         
-      sprintf(lowerSBSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
-      sprintf(lowerSBSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      sprintf(lowerSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      sprintf(lowerSBSelectionData,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   cout <<"upper selection: "<< upperSBSelection << " lower selection : "<< lowerSBSelection<<endl;
@@ -607,23 +894,23 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numP
   if(leptonId!=0)
     {
 
-      sprintf(sameChargeSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      sprintf(sameChargeSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
       
-        sprintf(chargeNeutralSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+        sprintf(chargeNeutralSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
 
-      sprintf(sameChargeSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      sprintf(sameChargeSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ", upperCut,lowerCut,numPions,leptonId);
       
-        sprintf(chargeNeutralSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+        sprintf(chargeNeutralSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",upperCut,lowerCut,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-      sprintf(sameChargeSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
-      sprintf(chargeNeutralSelection,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+      sprintf(sameChargeSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
+      sprintf(chargeNeutralSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
 
-      sprintf(sameChargeSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
-      sprintf(chargeNeutralSelectionData,"%s (mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+      sprintf(sameChargeSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",upperCut,lowerCut,numPions);
+      sprintf(chargeNeutralSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",upperCut,lowerCut,numPions);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   sprintf(histoName,"sameChargeMC_numPions_%d_leptonId_%d",numPions,leptonId);
@@ -652,6 +939,171 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numP
 
 }
 
+void addPoissonNoise(TH1F* h)
+{
+  for(int i=1;i<=h->GetNbinsX();i++)
+    {
+      double bc=h->GetBinContent(i);
+      double nv=rnd->Poisson(bc);
 
+      //      cout <<"for bin  " << i <<" old value : "<< bc <<" new : "<< nv <<endl;
+      //      cout <<"old error: " << h->GetBinError(i);
+      if(nv>0)
+	h->SetBinContent(i,nv);
+      //      cout <<"new error: "<< h->GetBinError(i) <<endl;;
+    }
+}
+
+void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,double signalFraction)
+{
+  cout <<"trying stability test.. " << endl;
+  TH1F** templates=new TH1F*[numComponents];
+  float S=0;
+  cout <<"doing the templates .." <<endl;
+  char buffer[500];
+  int iteration=0;
+
+  for(int i=0;i<numComponents;i++)
+    {
+      sprintf(buffer,"%s_Clone_it%d",templatesOrg[i]->GetName(),iteration);
+      templates[i]=(TH1F*)templatesOrg[i]->Clone(buffer);
+      cout <<"before template " << i <<" has " << templates[i]->Integral() <<" int and " << templates[i]->GetEntries()<<endl;
+      if(templates[i]->GetEntries()>0)
+	{
+	  addPoissonNoise(templates[i]);
+	}
+      //      cout <<"template " << i <<" has " << templates[i]->Integral() <<" int and " << templates[i]->GetEntries()<<endl;
+    }
+  float SData=templates[2]->Integral();
+
+
+  sprintf(buffer,"%s_Clone_it%d",dataOrg->GetName(),iteration);
+  TH1F* data=(TH1F*)dataOrg->Clone(buffer);
+  cout <<"doing the data " << endl;
+
+    addPoissonNoise(data);
+
+  cout <<"data has " <<SData <<" counts"<<endl;
+  double fitVal=0;
+  double fitErr=0;
+  S=getFitSignal(data,templates,numComponents, fitVal, fitErr);  
+  cout <<"data integral: "<< data->Integral()<< " entries: " << data->GetEntries()<<endl;
+  cout <<"fitVal: " << fitVal <<" fitErr: "<< fitErr <<endl;
+  cout <<"S is : " << S << " fraction times data: " << data->Integral()*fitVal <<" or " << data->GetEntries()*fitVal<<endl;
+  if(S>0&& fitErr>0.0)
+    {
+      cout <<"pull: " << (fitVal-signalFraction)/fitErr <<endl;
+      pulls->Fill((fitVal-signalFraction)/fitErr);
+    }
+  float errData=1.0;
+  float err=1.0;
+  if(SData>0)
+    errData=sqrt(SData);
+  if(S>0)
+    err=sqrt(S);
+  
+  if(S > 0 && SData> 0)
+    //    cout << "S: " << S << " Sdata: " << SData << " diff " << S/SData <<" pull: " << (S/SData)/ sqrt( (errData/SData)*(errData/SData)+(err/S)*(err/S))*S/SData <<endl;
+    //    cout << "S: " << S << " Sdata: " << SData << " diff " << S-SData <<" pull: " << (S-SData)/()<<endl;
+    {
+
+    }
+  else
+    {
+      cout <<" S or SD =<0"<<endl;
+    }
+
+  for(int i=0;i<numComponents;i++)
+    {
+      delete templates[i];
+    }
+  delete templates;
+}
+
+
+
+float getFitSignal(TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr)
+{
+  float S=0;
+  vector<int> countsOfComponents;
+  vector<float> integralOfComponents;
+  vector<int> effectiveComponentsIndices; 
+  int numEffectiveComponents=0;
+  TObjArray *mc = new TObjArray(numTemplates);        // MC histograms are put in this array
+  int signalIndex=0;
+  char buffer[300];
+  TCanvas c;
+
+  double templateIntegral=0.0;
+
+  for(int i=0;i<numTemplates;i++)
+    {
+      if(templates[i]->GetEntries()>0)
+	{
+	  cout <<"template " << i << " has " << templates[i]->GetEntries()<<endl;
+	  numEffectiveComponents++;
+
+	  mc->Add(templates[i]);
+	  sprintf(buffer,"poissonTemplate%d.png",i);
+	  templates[i]->Draw();
+	  c.SaveAs(buffer);
+	  if(i==2)
+	    {
+	      signalIndex=effectiveComponentsIndices.size();
+	      cout <<"set signalIndex to " << signalIndex<<endl;
+	    }
+	  effectiveComponentsIndices.push_back(i);
+	  //the same as the test effectiveComponentIndices[i]==2 from the regular fit
+	  countsOfComponents.push_back(templates[i]->GetEntries());
+	  double tempIntegral=templates[i]->Integral();
+	  integralOfComponents.push_back(tempIntegral);
+	  templateIntegral+=tempIntegral;
+	}
+    }
+  data->Draw();
+  c.SaveAs("poissonData.png");
+  cout <<"overall integral of templates: " << templateIntegral <<" of data: "<< data->Integral()<<endl;
+  TFractionFitter* fit = new TFractionFitter(data, mc); // initialise
+  for(int i=0;i<numEffectiveComponents;i++)
+    {
+      //use the leptonId=0
+      //  int fixThresholdCounts=2000;
+      if(countsOfComponents[i]>2000)
+	{
+	  fit->Constrain(i,0.0,1.0);               // constrain fraction 1 to be between 0 and 1
+	}
+      else
+	{
+	  double iThFraction=integralOfComponents[i]/templateIntegral;
+	  cout <<"fixing parameter " << i <<" to " << iThFraction <<endl;
+	  sprintf(buffer,"para%d",i);
+	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,0.0,0.0,1.0);
+	  fit->GetFitter()->FixParameter(i);
+	}
+    }
+
+  Int_t status = fit->Fit();               // perform the fit
+  std::cout << "fit status: " << status << std::endl;
+                       // check on fit status
+  if (status == 0) 
+    {
+    //we want to flip the signal (index =2 ) so that it is later
+    //	if(effectiveComponentsIndices[i]!=2)
+      cout <<"getting MC pred " << signalIndex <<endl;
+      TH1F* mcComp=(TH1F*) fit->GetMCPrediction(signalIndex);
+      S=mcComp->Integral();
+      fit->GetResult(signalIndex,fitVal,fitErr);
+      for(int i=0;i<numEffectiveComponents;i++)
+	{
+	  cout <<"effective component " << i<< " has " << fit->GetMCPrediction(i)->Integral() <<" integral and  " << fit->GetMCPrediction(i)->GetEntries() <<" counts" <<endl;
+	}
+    }
+  return S;
+}
+void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions)
+{
+
+
+};
 #endif
 
