@@ -14,8 +14,7 @@
 #include <cstdlib>
 #include <set>
 
-
-
+//#define MC_TEST
 #include "TFractionFitter.h"
 #include "doAnalysis.h"
 
@@ -31,19 +30,21 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numP
 
 void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int leptonId);
 
-
-
 void addCorrections(char* buffer);
-void fitFractions(TTree* tree, TH1F** summedComponents, int numPions,int leptonId,bool dataTree=false);
+
+void fitFractions(TTree* tree, TH1F** summedComponents, int numPions,int leptonId,bool dataTree=false, bool addNoise=false);
 
 
+const int gl_numComponents=9;
+const int gl_numFiles=4;
 int main(int argc, char** argv)
 {
-
-  withPIDCorrection=false;
-  withLumiCorrection=false;
-  withBCorrection=false;
-  withDCorrection=false;
+  rnd=new TRandom();
+  gStyle->SetOptStat(0);
+  withPIDCorrection=true;
+  withLumiCorrection=true;
+  withBCorrection=true;
+  withDCorrection=true;
 
   gStyle->SetOptFit(1111);
   if(argc!=7)
@@ -61,6 +62,7 @@ int main(int argc, char** argv)
   int numPions=atoi(argv[6]);
   cout <<"want " << numPions <<endl;
 
+  //outdated...
   //  doAnalysis(fileNameMixed,fileNameCharged,fileNameUds,fileNameCharm, numPions);
 
 
@@ -95,17 +97,17 @@ int main(int argc, char** argv)
   glColorTable[2]=gROOT->GetColor(kYellow);
   glColorTable[3]=gROOT->GetColor(kMagenta);
   glColorTable[4]=gROOT->GetColor(kOrange);
-  glColorTable[5]=gROOT->GetColor(kBlack);
-  glColorTable[6]=gROOT->GetColor(kSpring);
-  glColorTable[7]=gROOT->GetColor(kGray);
-  glColorTable[8]=gROOT->GetColor(kPink);
-  glColorTable[9]=gROOT->GetColor(kCyan);
-  glColorTable[10]=gROOT->GetColor(kWhite);
+  //  glColorTable[5]=gROOT->GetColor(kBlack);
+  glColorTable[5]=gROOT->GetColor(kSpring);
+  glColorTable[6]=gROOT->GetColor(kGray);
+  //  glColorTable[8]=gROOT->GetColor(kPink);
+  glColorTable[7]=gROOT->GetColor(kCyan);
+  glColorTable[8]=gROOT->GetColor(kWhite);
 
 
-  TH1F* components[11*4];
+  TH1F* components[9*4];
   //the allocation of the actual histograms is done in the functions
-  TH1F* summedComponents[11];
+  TH1F* summedComponents[3][2][9];
 
   TH1F** sameChargeMC=new TH1F*;
   TH1F** chargeNeutralMC=new TH1F*;
@@ -127,114 +129,273 @@ int main(int argc, char** argv)
   mcChain->Add(fileNameCharged);
   mcChain->Add(fileNameUds);
   mcChain->Add(fileNameCharm);
+  int pionIndex=0;
+  if(numPions==2)
+    pionIndex=1;
 
 
+  int loadFromFile=false;
+  TFile* mF=0;
+  char filename[200];
+  sprintf(filename,"myFile_numPions%d.root",numPions);
+  if(!loadFromFile)
+    {
+      mF=new TFile(filename,"RECREATE");
+    }
+  else
+    {
+      cout <<"do load .." <<endl;
+      mF=new TFile(filename);
+      cout <<"loading .." <<endl;
+    }
+
+  //   for(int i=0;i<1;i++)
   for(int i=0;i<3;i++)
     {
       leptonId=leptonIds[i];
-      getMCComponents(trees,components,summedComponents, numPions,leptonId);
+
+      if(!loadFromFile)
+	{
+	  //components give the components for each file separately
+	  getMCComponents(trees,components,summedComponents[i][pionIndex], numPions,leptonId);
+	}
+      else
+	{
+	  loadComponents(mF,components,summedComponents[i][pionIndex],numPions,leptonId,gl_numComponents,gl_numFiles);
+	}
+
+      cout <<"done loading " <<endl;
+      if(!loadFromFile)
+	{
+	  for(int j=0;j<9;j++)
+	    {
+	      summedComponents[i][pionIndex][j]->Write();
+	    }
+	  for(int b=0;b<gl_numComponents;b++)
+	    {
+	      for(int iF=0;iF<gl_numFiles;iF++)
+		{
+		  components[iF*gl_numComponents+b]->Write();
+		}
+	    }
+	  mF->Write();
+	}
+    
       //  cout <<"calling save stack.." <<endl;
-      saveStack(components,summedComponents,numPions,leptonId);
-
+      saveStack(components,summedComponents[i][pionIndex],numPions,leptonId);
+      //      for(
       //the 'other BB doesn't seem to be used...'
-      fitFractions(trees,summedComponents,10, numPions,leptonId,false);
-      doSidebandComparison(mcChain,trees[4],leptonId,numPions,lowerSidebandMC,upperSidebandMC,lowerSidebandData,upperSidebandData);
+      //      fitFractions(trees,summedComponents,10, numPions,leptonId,false);
+      sprintf(buffer,"pulls_numPions%d",numPions);
+      TH1D* pulls=new TH1D(buffer,buffer,100,-3,3);
+      //this used to be 10 components... I don't understand why, I guess that meanst that the other BB was missing
+#ifdef MC_TEST
+      fitFractions(trees,summedComponents[i][pionIndex],9, numPions,leptonId,true,false,pulls);
+#else
+      fitFractions(trees,summedComponents[i][pionIndex],9, numPions,leptonId,false,false,pulls);
+#endif
 
-      (*upperSidebandData)->Sumw2();
-      (*lowerSidebandData)->Sumw2();
-      (*upperSidebandMC)->Sumw2();
-      (*lowerSidebandMC)->Sumw2();
+      //-->this calls fitFraction with addNoise set to true
+      ///////      fitFractions(trees,summedComponents[i][pionIndex],9,numPions,leptonId,false,true,pulls);
 
-      double scaleUpper=(*upperSidebandMC)->GetEntries()/((double)((*upperSidebandData)->GetEntries()));
-      double scaleLower=(*lowerSidebandMC)->GetEntries()/((double)((*lowerSidebandData)->GetEntries()));
-
-            scaleUpper=5.0;
-       scaleLower=5.0;
-
-      cout <<"scaleUpper: "<< scaleUpper <<" lower: "<< scaleLower <<endl;
-
-      (*upperSidebandData)->Scale(scaleUpper);
-      (*lowerSidebandData)->Scale(scaleLower);
+      //      bool doSBComp=false;
+      bool doSBComp=true;
+      TCanvas cpulls;
+      pulls->Draw();
+      pulls->Fit("gaus");
+      pulls->Draw();
+      sprintf(buffer,"pulls_numPions%d.png",numPions);
+      cpulls.SaveAs(buffer);
 
 
-      TCanvas c("c","c",0,0,1000,800);
-      c.Divide(2,2);
-      c.cd(1);
+      if(doSBComp)
+	{
+           doSidebandComparison(mcChain,trees[4],leptonId,numPions,lowerSidebandMC,upperSidebandMC,lowerSidebandData,upperSidebandData);
 
-      (*lowerSidebandMC)->Draw();
-      c.Update();
+	   (*upperSidebandData)->Sumw2();
+	   (*lowerSidebandData)->Sumw2();
+	   (*upperSidebandMC)->Sumw2();
+	   (*lowerSidebandMC)->Sumw2();
+	   (*lowerSidebandData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*lowerSidebandMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*upperSidebandData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*upperSidebandMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*lowerSidebandData)->SetLineWidth(2);
+	   (*lowerSidebandMC)->SetLineWidth(2);
+	   (*upperSidebandData)->SetLineWidth(2);
+	   (*upperSidebandMC)->SetLineWidth(2);
+	   (*lowerSidebandData)->SetStats(0);
+	   (*lowerSidebandMC)->SetStats(0);
+	   (*upperSidebandData)->SetStats(0);
+	   (*upperSidebandMC)->SetStats(0);
+	   (*lowerSidebandData)->SetTitle("");
+	   (*lowerSidebandMC)->SetTitle("");
+	   (*upperSidebandData)->SetTitle("");
+	   (*upperSidebandMC)->SetTitle("");
+	   
+	   (*lowerSidebandData)->SetMinimum(0);
+	   (*lowerSidebandMC)->SetMinimum(0);
+	   (*upperSidebandData)->SetMinimum(0);
+	   (*upperSidebandMC)->SetMinimum(0);
 
-      (*lowerSidebandData)->Draw("SAME");
-      c.cd(2);
 
-      (*upperSidebandMC)->Draw();
-      c.Update();
 
-      (*upperSidebandData)->Draw("SAME");
-      c.cd(3);
-      TH1F* lowerSidebandMCDiv=(TH1F*)(*lowerSidebandMC)->Clone("lowerSBMCDiv");
-      lowerSidebandMCDiv->Sumw2();
-      lowerSidebandMCDiv->Divide(*lowerSidebandData);
-      lowerSidebandMCDiv->Draw();
-      lowerSidebandMCDiv->Fit("pol0");
-      c.cd(4);
 
-      TH1F* upperSidebandMCDiv=(TH1F*)(*upperSidebandMC)->Clone("upperSBMCDiv");
-      upperSidebandMCDiv->Sumw2();
-      upperSidebandMCDiv->Divide(*upperSidebandData);
-      upperSidebandMCDiv->Draw();
-      upperSidebandMCDiv->Fit("pol0");
+	   double scaleUpper=(*upperSidebandMC)->GetEntries()/((double)((*upperSidebandData)->GetEntries()));
+	   double scaleLower=(*lowerSidebandMC)->GetEntries()/((double)((*lowerSidebandData)->GetEntries()));
 
-      sprintf(buffer,"SidebandComparison_NumPions_%d_leptonId_%d.png",numPions,leptonId);
-      c.SaveAs(buffer);
+#ifdef MC_TEST
+	   scaleUpper=4.0;
+	   scaleLower=4.0;
+#else
+	   scaleUpper=5.0;
+	   scaleLower=5.0;
+#endif
+	   cout <<"scaleUpper: "<< scaleUpper <<" lower: "<< scaleLower <<endl;
+	   
+	   (*upperSidebandData)->Scale(scaleUpper);
+	   (*lowerSidebandData)->Scale(scaleLower);
 
-      doWrongSignComparison(mcChain,trees[4],leptonId,numPions,sameChargeMC,chargeNeutralMC,sameChargeData,chargeNeutralData);
-      (*sameChargeMC)->Sumw2();
-      (*sameChargeData)->Sumw2();
-      (*chargeNeutralMC)->Sumw2();
-      (*chargeNeutralData)->Sumw2();
+
+
+	   TCanvas c("c","c",0,0,1000,800);
+	   c.Divide(2,2);
+	   c.cd(1);
+	   //      stacks[iF]->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
+	   
+	   (*lowerSidebandMC)->Draw();
+	   c.Update();
+	   
+	   (*lowerSidebandData)->Draw("SAME");
+	   
+	   c.cd(2);
+	   
+	   (*upperSidebandMC)->Draw();
+	   c.Update();
+	   
+	   (*upperSidebandData)->Draw("SAME");
+	   c.cd(3);
+	   TH1F* lowerSidebandMCDiv=(TH1F*)(*lowerSidebandMC)->Clone("lowerSBMCDiv");
+	   lowerSidebandMCDiv->Sumw2();
+	   lowerSidebandMCDiv->Divide(*lowerSidebandData);
+	   lowerSidebandMCDiv->Draw();
+	   lowerSidebandMCDiv->Fit("pol0");
+	   c.cd(4);
+
+	   TH1F* upperSidebandMCDiv=(TH1F*)(*upperSidebandMC)->Clone("upperSBMCDiv");
+	   upperSidebandMCDiv->Sumw2();
+	   upperSidebandMCDiv->Divide(*upperSidebandData);
+	   upperSidebandMCDiv->Draw();
+	   upperSidebandMCDiv->Fit("pol0");
+	   
+	   sprintf(buffer,"SidebandComparison_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	   c.cd(0);
+	   (*lowerSidebandMC)->Draw();
+	   c.Update();
+	   (*lowerSidebandData)->Draw("SAME");
+	   sprintf(buffer,"LowerSidebandComparison_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	   c.cd(0);
+	   (*upperSidebandMC)->Draw();
+	   c.Update();
+	   (*upperSidebandData)->Draw("SAME");
+	   sprintf(buffer,"UpperSidebandComparison_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	   
+	   doWrongSignComparison(mcChain,trees[4],leptonId,numPions,sameChargeMC,chargeNeutralMC,sameChargeData,chargeNeutralData);
+	   (*sameChargeMC)->Sumw2();
+	   (*sameChargeData)->Sumw2();
+	   (*chargeNeutralMC)->Sumw2();
+	   (*chargeNeutralData)->Sumw2();
+
+
+
+	   (*sameChargeData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*sameChargeMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*chargeNeutralData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*chargeNeutralMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	   (*sameChargeData)->SetLineWidth(2);
+	   (*sameChargeMC)->SetLineWidth(2);
+	   (*chargeNeutralData)->SetLineWidth(2);
+	   (*chargeNeutralMC)->SetLineWidth(2);
+	   (*sameChargeData)->SetStats(0);
+	   (*sameChargeMC)->SetStats(0);
+	   (*chargeNeutralData)->SetStats(0);
+	   (*chargeNeutralMC)->SetStats(0);
+	   (*sameChargeData)->SetTitle("");
+	   (*sameChargeMC)->SetTitle("");
+	   (*chargeNeutralData)->SetTitle("");
+	   (*chargeNeutralMC)->SetTitle("");
+	   
+	   (*sameChargeData)->SetMinimum(0);
+	   (*sameChargeMC)->SetMinimum(0);
+	   (*chargeNeutralData)->SetMinimum(0);
+	   (*chargeNeutralMC)->SetMinimum(0);
+
+
+
+
+
+
       //      double scaleSameCharge=(*sameChargeMC)->GetEntries()/((double)((*sameChargeData)->GetEntries()));
       //      double scaleChargeNeutral=(*chargeNeutralMC)->GetEntries()/((double)((*chargeNeutralData)->GetEntries()));
 
-      double scaleSameCharge=5.0;
-      double scaleChargeNeutral=5.0;
+	   double scaleSameCharge=5.0;
+	   double scaleChargeNeutral=5.0;
+	   
+
+	   cout <<"scalesameCharge: "<< scaleSameCharge <<" chargeNeutral: "<< scaleChargeNeutral <<endl;
+	   
+	   (*sameChargeData)->Scale(scaleSameCharge);
+	   (*chargeNeutralData)->Scale(scaleChargeNeutral);
+	   c.Divide(2,2);
+	   c.cd(1);
+
+	   (*sameChargeMC)->Draw();
+	   c.Update();
+	   
+	   (*sameChargeData)->Draw("SAME");
+	   c.cd(2);
+	   
+	   (*chargeNeutralMC)->Draw();
+	   c.Update();
+	   
+	   (*chargeNeutralData)->Draw("SAME");
+	   c.cd(3);
+	   TH1F* sameChargeMCDiv=(TH1F*)(*sameChargeMC)->Clone("sameChargeMCDiv");
+	   sameChargeMCDiv->Sumw2();
+	   sameChargeMCDiv->Divide(*sameChargeData);
+	   sameChargeMCDiv->Draw();
+	   sameChargeMCDiv->Fit("pol0");
+	   c.cd(4);
+
+	   TH1F* chargeNeutralMCDiv=(TH1F*)(*chargeNeutralMC)->Clone("chargeNeutralMCDiv");
+	   chargeNeutralMCDiv->Sumw2();
+	   chargeNeutralMCDiv->Divide(*chargeNeutralData);
+	   chargeNeutralMCDiv->Draw();
+	   chargeNeutralMCDiv->Fit("pol0");
+	   sprintf(buffer,"WrongCharge_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	   
+	   c.cd(0);
+	   (*sameChargeMC)->Draw();
+	   c.Update();
+	   (*sameChargeData)->Draw("SAME");
+	   sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	   
+	   c.cd(0);
+	   (*chargeNeutralMC)->Draw();
+	   c.Update();
+	   (*chargeNeutralData)->Draw("SAME");
+	   sprintf(buffer,"ChargeNeutral_NumPions_%d_leptonId_%d.png",numPions,leptonId);
+	   c.SaveAs(buffer);
+	}//end if(doSB..)
 
 
-      cout <<"scalesameCharge: "<< scaleSameCharge <<" chargeNeutral: "<< scaleChargeNeutral <<endl;
-
-      (*sameChargeData)->Scale(scaleSameCharge);
-      (*chargeNeutralData)->Scale(scaleChargeNeutral);
-
-      c.cd(1);
-
-      (*sameChargeMC)->Draw();
-      c.Update();
-
-      (*sameChargeData)->Draw("SAME");
-      c.cd(2);
-
-      (*chargeNeutralMC)->Draw();
-      c.Update();
-
-      (*chargeNeutralData)->Draw("SAME");
-      c.cd(3);
 
 
-      TH1F* sameChargeMCDiv=(TH1F*)(*sameChargeMC)->Clone("sameChargeMCDiv");
-      sameChargeMCDiv->Sumw2();
-      sameChargeMCDiv->Divide(*sameChargeData);
-      sameChargeMCDiv->Draw();
-      sameChargeMCDiv->Fit("pol0");
-      c.cd(4);
-
-      TH1F* chargeNeutralMCDiv=(TH1F*)(*chargeNeutralMC)->Clone("chargeNeutralMCDiv");
-      chargeNeutralMCDiv->Sumw2();
-      chargeNeutralMCDiv->Divide(*chargeNeutralData);
-      chargeNeutralMCDiv->Draw();
-      chargeNeutralMCDiv->Fit("pol0");
-
-      sprintf(buffer,"WrongCharge_NumPions_%d_leptonId_%d.png",numPions,leptonId);
-      c.SaveAs(buffer);
     }
 }
 
@@ -254,9 +415,9 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
 
   */
   char* fileNames[4];
-  char* legendNames[11];
+  char* legendNames[9];
 
-  char* allLegendNames[11];
+  char* allLegendNames[9];
 
   fileNames[0]=new char[500];
   fileNames[1]=new char[500];
@@ -276,57 +437,57 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
   TH1F* hDStarPiPilNu=new TH1F("DStarPiPiLNu","DStarPiPiLNu",numBins,lowerCut,upperCut);
   TH1F* hOtherBB=new TH1F("OtherBB","OtherBB",numBins,lowerCut,upperCut);
 
-  TH1F* summedHistos[11];
+  TH1F* summedHistos[9];
   summedHistos[0]=hContinuum;
   summedHistos[1]=hOtherBB;
   summedHistos[2]=hDDStar;
 
   summedHistos[3]=hDDStarPiPi;
   summedHistos[4]=hDlNu;
-  summedHistos[5]=hDPilNu;
-  summedHistos[6]=hDPiPilNu;
-  summedHistos[7]=hDStarlNu;
-  summedHistos[8]=hDStarPilNu;
-  summedHistos[9]=hDStarPiPilNu;
-  summedHistos[10]=hDDStarPi;  
+  //  summedHistos[5]=hDPilNu;
+  summedHistos[5]=hDPiPilNu;
+  summedHistos[6]=hDStarlNu;
+  //  summedHistos[8]=hDStarPilNu;
+  summedHistos[7]=hDStarPiPilNu;
+  summedHistos[8]=hDDStarPi;  
 
 
 
-  for(int i=0;i<11;i++)
+  for(int i=0;i<9;i++)
     {
       legendNames[i]=new char [200];
       allLegendNames[i]=new char[200];
     }
 
-  sprintf(legendNames[0],"D Double Star (no Dn#pi l#nu)");
-  sprintf(legendNames[1],"D Double Star #pi (no Dn#pi l#nu)");
-  sprintf(legendNames[2],"D Double Star #pi #pi (no Dn#pi l#nu)");
+  sprintf(legendNames[0],"B #rightarrow D Double Star l #nu(no Dn#pi l#nu non-res)");
+  sprintf(legendNames[1],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi (no Dn#pi l#nu nonresonant)");
+  sprintf(legendNames[2],"B #rightarrow Double Star X #rightarrow D^{(*)} #pi #pi (no Dn#pi l#nu nonresonant)");
   sprintf(legendNames[3],"D l #nu");
-  sprintf(legendNames[4],"D #pi l #nu");
-  sprintf(legendNames[5],"D #pi #pi l #nu");
+  // sprintf(legendNames[4],"D #pi l #nu");
+   sprintf(legendNames[4],"D #pi #pi l #nu");
 
-  sprintf(legendNames[6],"D* l #nu");
-  sprintf(legendNames[7],"D* #pi l #nu");
-  sprintf(legendNames[8],"D* #pi #pi l #nu");
-  sprintf(legendNames[9]," no D(*)n #pi l#nu ");
-  sprintf(legendNames[10]," no Selection");
+  sprintf(legendNames[5],"D* l #nu");
+  //  sprintf(legendNames[7],"D* #pi l #nu");
+  sprintf(legendNames[6],"D* #pi #pi l #nu");
+  sprintf(legendNames[7]," no D(*)n #pi l#nu ");
+  sprintf(legendNames[8]," no Selection");
 
 
 
 
   sprintf(allLegendNames[0],"Continuum");
   sprintf(allLegendNames[1]," other B B ");
-  sprintf(allLegendNames[2],"D Double Star");
+  sprintf(allLegendNames[2],"B #rightarrow D Double Star X #rightarrow D^{(*)}");
 
-  sprintf(allLegendNames[3],"D Double Star #pi #pi");
-  sprintf(allLegendNames[4],"D l #nu");
-  sprintf(allLegendNames[5],"D #pi l #nu");
-  sprintf(allLegendNames[6],"D #pi #pi l #nu");
+  sprintf(allLegendNames[3],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi #pi");
+    sprintf(allLegendNames[4],"D l #nu");
+    //sprintf(allLegendNames[4],"D #pi l #nu");
+  sprintf(allLegendNames[5],"D #pi #pi l #nu");
 
-  sprintf(allLegendNames[7],"D* l #nu");
-  sprintf(allLegendNames[8],"D* #pi l #nu");
-  sprintf(allLegendNames[9],"D* #pi #pi l #nu");
-  sprintf(allLegendNames[10],"D Double Star #pi");
+  sprintf(allLegendNames[6],"D* l #nu");
+  //  sprintf(allLegendNames[8],"D* #pi l #nu");
+  sprintf(allLegendNames[7],"D* #pi #pi l #nu");
+  sprintf(allLegendNames[8],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi");
 
 
   sprintf(fileNames[0],"mixed");
@@ -370,7 +531,7 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
 
   //this is for all the same, the selection of the data. It can be 0, one or two pions
 
-  char* selections[11];
+  char* selections[9];
 
   char buffer[2000];
 
@@ -393,13 +554,13 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
   selections[1]=bufferDDStarPi;
   selections[2]=bufferDDStarPiPi;
   selections[3]=bufferDlNu;
-  selections[4]=bufferDPilNu;
-  selections[5]=bufferDPiPilNu;
-  selections[6]=bufferDStarlNu;
-  selections[7]=bufferDStarPilNu;
-  selections[8]=bufferDStarPiPilNu;
-  selections[9]=bufferAll;
-  selections[10]=bufferNoSelection;
+  //  selections[4]=bufferDPilNu;
+  selections[4]=bufferDPiPilNu;
+  selections[5]=bufferDStarlNu;
+  //  selections[7]=bufferDStarPilNu;
+  selections[6]=bufferDStarPiPilNu;
+  selections[7]=bufferAll;
+  selections[8]=bufferNoSelection;
 
   if(leptonId!=0)
     {
@@ -444,18 +605,18 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
 
 
 
-  TColor* colorTable[11];
+  TColor* colorTable[9];
   colorTable[0]=gROOT->GetColor(kBlue);
   colorTable[1]=gROOT->GetColor(kRed);
   colorTable[2]=gROOT->GetColor(kCyan);
   colorTable[3]=gROOT->GetColor(kMagenta);
-  colorTable[4]=gROOT->GetColor(kGreen);
-  colorTable[5]=gROOT->GetColor(kBlack);
-  colorTable[6]=gROOT->GetColor(kWhite);
-  colorTable[7]=gROOT->GetColor(kGray);
-  colorTable[8]=gROOT->GetColor(kViolet);
-  colorTable[9]=gROOT->GetColor(kYellow);
-  colorTable[10]=gROOT->GetColor(kTeal);
+  //  colorTable[4]=gROOT->GetColor(kGreen);
+  colorTable[4]=gROOT->GetColor(kBlack);
+  colorTable[5]=gROOT->GetColor(kWhite);
+  colorTable[6]=gROOT->GetColor(kGray);
+  //  colorTable[8]=gROOT->GetColor(kViolet);
+  colorTable[7]=gROOT->GetColor(kYellow);
+  colorTable[8]=gROOT->GetColor(kTeal);
 
 
   for(int iF=0;iF<4;iF++)
@@ -465,7 +626,7 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
       stacks[iF]=new THStack(bufferF,bufferF);
       TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
       int allCounts=0;
-      for(int b=0;b<11;b++)
+      for(int b=0;b<9;b++)
 	{
 	  sprintf(histoName,"histo_If_%d_b_%d",iF,b);
 	  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBins,lowerCut,upperCut);
@@ -540,7 +701,7 @@ void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, c
     }
 
   TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
-  for(int i=0;i<11;i++)
+  for(int i=0;i<9;i++)
     {
       all.Add(summedHistos[i]);
       legend->AddEntry(summedHistos[i],allLegendNames[i],"f");
