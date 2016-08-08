@@ -1,6 +1,9 @@
 const bool PRINT=false;
+const bool kickOut2S=false;
 //const bool PRINT=true;
 const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
+//const bool SAVE_MESON_MASS_DISTRIBUTIONS=true;
+#include "bToDDoubleStar/ParticleInfoDecay.h"
 #include <iomanip>
 #include "mdst/findKs.h"
 #include "bToDDoubleStar/mc.h"  //one central place to put the define mc
@@ -42,12 +45,14 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include "kfitter/khelix2xyz.h"
 #include "kfitter/kfitterparticle.h"
 
+
 #include "bToDDoubleStar/weighting.h"
 
 //#include "exkvertexfitter... " for more than 1 to 2 decay
 
 #include <iostream>
-
+#define pi0Mass 0.1349766
+#define PY_RHO_0 113
 #define PY_GAMMA 22
 #define PY_E 11
 #define PY_Tau 15
@@ -144,6 +149,7 @@ namespace Belle {
     mesonMassTree->Branch("dMass", &dMass, "dMass/F");
     mesonMassTree->Branch("dType", &dType, "dType/I");
     mesonMassTree->Branch("dDecay", &dDecay, "dDecay/I");
+    mesonMassTree->Branch("isSignal",&dIsSignal,"isSignal/I");
     mesonMassTree->Branch("foundDDoubleStarDecay",&foundDDoubleStarDecay,"foundDDoubleStarDecay/I");
     mesonMassTree->Branch("allDTracksFound",&allDTracksFound,"allDTracksFound/I");
     ///end 
@@ -357,10 +363,17 @@ namespace Belle {
     //  pTreeSaver->addArrayPi0AsymmetryF("realPi0_gammaAsymmetry");
 #endif
   }
-
+  int dDoubleStarId=0;
   // event function
   void bToDDoubleStar::event(BelleEvent* evptr, int* status)
   {
+    foundChargedDecIds.clear();
+
+
+    Evtcls_hadron_info_Manager& hadronInfo_mgr = Evtcls_hadron_info_Manager::get_manager();
+    float  visEnergyOnFile=hadronInfo_mgr.begin()->Evis();
+    kinematics::E_miss=kinematics::Q-visEnergyOnFile;
+
     //for data make sure that we have a sensible default value
     treeData.initData();
     treeData.B_DecayCorr=1.0;
@@ -372,6 +385,7 @@ namespace Belle {
     sig_FoundDDoubleStar=false;
     sig_numLeptons=0;
     sig_numKaons=0;
+    sig_numRhos=0;
     sig_numPions=0;
     sig_numD=0;
     sig_numDStar=0;
@@ -387,6 +401,16 @@ namespace Belle {
     sigDLNu=0;
     sigDPiLNu=0;
     sigDPiPiLNu=0;
+
+
+    sigResDStarLNu=0;
+    sigResDStarPiLNu=0;
+    sigResDStarPiPiLNu=0;
+
+    sigResDLNu=0;
+    sigResDPiLNu=0;
+    sigResDPiPiLNu=0;
+
 
     ///add the decays for which we want to do branching ratio and FF corrections
     br_sig_D0LNu=0;
@@ -430,6 +454,8 @@ namespace Belle {
 
     const double m_pi0=0.1349766;
     vector<int> foundDecIds;
+
+
     int numNu=0;
     vector<int> decIds;
     vector<int> pids;
@@ -462,6 +488,14 @@ namespace Belle {
 
     if(m_mc)
       {
+
+	if(foundUnwantedDDoubleStar())
+	  {
+	    if(kickOut2S)
+	      return;
+	  }
+
+
 	Mctype_Manager &mctype_m = Mctype_Manager::get_manager();
 	int mc_type = mctype_m.begin()->type();
 	XSectionWeight=pidCorrections.getXSectionCorrection(m_mc,mc_type);
@@ -480,6 +514,7 @@ namespace Belle {
 	      {
 		if(gen_it->get_ID()!=bMesonId)
 		  continue;
+
 		
 		//call recCheck with the meson that has the desired decay
 		recCheck((*gen_it),decIds,pids,numNu);
@@ -495,7 +530,8 @@ namespace Belle {
 
     //the signal decay candidates (after removing decay products from the best B
     //from Robin...
-    const double _log_nbout_min=-3;
+    //was -3 but put lower so we can explore phase space for fom
+    const double _log_nbout_min=-4;
     //    const double _tag_Mbc=5.25;
 
     //    cout <<" valid run " << validRun<<endl;
@@ -624,6 +660,13 @@ namespace Belle {
 	exitEvent();
 	return;
       }
+    //According to Christoph, there are no non-resonant D(*)pilnu decays...
+    if(m_mc &&(sigDPiLNu|| sigDStarPiLNu))
+      {
+	exitEvent();
+	return;
+      }
+
     
     //    cout <<"best log prob: "<< bestLogProb<<endl;
     Particle & bestBcand = const_cast<Particle &>(brecon.getParticle( (int)bestEKP_B.get_ID() ));
@@ -650,8 +693,9 @@ namespace Belle {
     treeData.foundDPiPi=foundDPiPi;
     treeData.recBToDlNuPi=foundSinglePionDecay;
     treeData.tagCorr=tagCorr;
-    treeData.found_2SD=found_2SD;
-    treeData.found_2SD_Star=found_2SD_Star;
+    // sig_dStar_2S, sig_d_2S);
+    treeData.found_2SD=sig_d_2S;
+    treeData.found_2SD_Star=sig_dStar_2S;
     treeData.foundAnyDDoubleStar=sig_FoundDDoubleStar;
     treeData.sig_numPions=sig_numPions;
     treeData.sig_numD=sig_numD;
@@ -662,10 +706,9 @@ namespace Belle {
     treeData.sig_numBaryons=sig_numBaryons;
     treeData.tagOverlapFractionCharged=overlapFractionCharged;
     treeData.tagOverlapFractionPi0=overlapFractionPi0;
-    if((sigDStarLNu || sigDStarPiLNu || sigDStarPiPiLNu )&& sig_FoundDDoubleStar)
+    //    if((sigDStarLNu || sigDStarPiLNu || sigDStarPiPiLNu )&& sig_FoundDDoubleStar)
       {
 	//	cout <<"found dlnu and ddouble star!!!!!" <<endl;
-
       }
 
     treeData.sigDLNu=sigDLNu;
@@ -675,6 +718,17 @@ namespace Belle {
     treeData.sigDStarLNu=sigDStarLNu;
     treeData.sigDStarPiLNu=sigDStarPiLNu;
     treeData.sigDStarPiPiLNu=sigDStarPiPiLNu;
+
+
+
+    treeData.sigResDLNu=sigResDLNu;
+    treeData.sigResDPiLNu=sigResDPiLNu;
+    treeData.sigResDPiPiLNu=sigResDPiPiLNu;
+
+    treeData.sigResDStarLNu=sigResDStarLNu;
+    treeData.sigResDStarPiLNu=sigResDStarPiLNu;
+    treeData.sigResDStarPiPiLNu=sigResDStarPiPiLNu;
+
 
     treeData.sig_dStar_2S=sig_dStar_2S;
     treeData.sig_d_2S=sig_d_2S;
@@ -717,10 +771,10 @@ namespace Belle {
 	      {
 		pidWeight*=pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr);
 		//	      if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-	      if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
-		{
-		  		  cout <<"ks pidweight : " << pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
-		}
+		if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+		  {
+		    cout <<"ks pidweight : " << pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
+		  }
 	      
 	      }
 	  }
@@ -735,6 +789,10 @@ namespace Belle {
     //    cout <<"there are " << mdst_chr_Mgr.size() << " charge tracks in mdst_chr " <<endl;
     for(Mdst_charged_Manager::iterator chr_it=mdst_chr_Mgr.begin();chr_it!=mdst_chr_Mgr.end();chr_it++)
       {
+	//to check if the pions from in the signal can be reconstructed...
+	if(m_mc)
+	  foundChargedDecIds.insert(chr_it->get_ID());
+
 	//part of the tag
 	if(chargedIds.find(chr_it->get_ID())!=chargedIds.end()){
 	  //	 	  cout <<"charged track is part of track " <<endl;
@@ -845,6 +903,7 @@ namespace Belle {
 		//	      cout <<"is electron" <<endl;
 	      }
 	    m_histos.hPidEPi->Fill(chr_it->trk().pid_e(),chr_it->trk().pid_pi());
+	    //this mass is only used for the dr/dz fits, the mass hypothesis for later is pion
 	    m_mass=m_e;
 	    isLepton=true;
 	    m_histos.hPidE->Fill(chr_it->trk().pid_e(),chr_it->trk().pid_mu());
@@ -938,6 +997,25 @@ namespace Belle {
 	  {
 	    continue;//used to be 4
 	  }
+	//check if electron or muon are in reasonable acceptance
+	//e: 17 < theta < 150, mu: 25< theta< 145
+
+	Particle* p=new Particle(*chr_it,string(ptypName));
+	float deg=180*(p->p3().theta()/TMath::Pi());
+	//	cout <<" converted " << p->p3().theta() <<" to  " << deg <<endl;
+	if(fabs(p->pType().lund())==PY_E)
+	  {
+	    if(deg < 17 || deg> 150)
+	      continue;
+	    addBremsPhoton(p);
+
+
+	  }
+	if(fabs(p->pType().lund())==PY_MU)
+	  {
+	    if(deg < 25 || deg >145)
+	      continue;
+	  }
 
 
 	//------>
@@ -945,20 +1023,20 @@ namespace Belle {
 	//note that particles that are part of the tag, and that shouldn't be weighted are not part of this loop (we checked earlier)
 	//pi0 and ks misid later...
 
-	Particle* p=new Particle(*chr_it,string(ptypName));
+
 	if(m_mc)
 	  {
 	    Gen_hepevt hepEvt=get_hepevt(*chr_it);  
 	    if((fabs(p->pType().lund()==PY_E) || fabs(p->pType().lund())==PY_MU )&& (p->pType().lund()!=hepEvt.idhep()))
 	      {
-		cout <<"thought we had " << p->pType().lund() <<" but we have " << hepEvt.idhep()<<endl;
+		//		cout <<"thought we had " << p->pType().lund() <<" but we have " << hepEvt.idhep()<<endl;
 	      }
 	    pidWeight*=pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr);
 	    //	  if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-	  if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
-	    {
-	      cout <<"charged pidweight : " << pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr) << ", "<<hepEvt.idhep() <<" rec: "<< p->pType().lund() <<" p toto : " << p->ptot() <<" theta: " << p->p3().theta() << " exp: "<< expNr <<" run  " << runNr <<endl;
-	    }
+	    if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+	      {
+		//	      cout <<"charged pidweight : " << pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr) << ", "<<hepEvt.idhep() <<" rec: "<< p->pType().lund() <<" p toto : " << p->ptot() <<" theta: " << p->p3().theta() << " exp: "<< expNr <<" run  " << runNr <<endl;
+	      }
 
 	  }
 
@@ -1024,7 +1102,6 @@ namespace Belle {
       {
 	const Mdst_pi0& pi0=*i;
 	int id =(int)pi0.get_ID();
-
 	//	cout <<"pi0 children: " << pi0.nChildren()<<endl;
 
 	if(pi0Ids.find(id)!=pi0Ids.end())
@@ -1063,7 +1140,9 @@ namespace Belle {
 	//ratio of energy in 3x3 cluster compared to 5x5 cluster in emcal
 	double e9oe25_2 =aux2.e9oe25();
 	double mass=pi0.mass(); //mass before fitting ???
-	if(mass>0.15 || mass<0.12)
+	///	if(mass>0.15 || mass<0.12)
+	//almost the same as above...
+	if(fabs(mass-pi0Mass)>0.015)
 	  continue;
 	float pLab=sqrt(px*px+py*py+pz*pz);
 	//      cout <<"pi0mass: "<< mass <<endl;≈
@@ -1076,9 +1155,15 @@ namespace Belle {
 	//	  continue;
 	//let's make this 100 MeV rather than 50 (see Charlotte's study)
 	//	if(g1Energy < 0.1 || g2Energy < 0.1)
-	if(g1Energy < 0.05 || g2Energy < 0.05)
+
+
+
+	if(!checkGammaEnergy(pi0.gamma(0).px(), pi0.gamma(0).py(), pi0.gamma(0).pz(),g1Energy))
+	  continue;
+	if(!checkGammaEnergy(pi0.gamma(1).px(), pi0.gamma(1).py(), pi0.gamma(1).pz(),g2Energy))
 	  continue;
 	Particle* p=new Particle(pi0);
+
 	double confLevel;
 	//       cout <<" pi0 px: "<< pi0.px()<<" py: "<< pi0.py() <<" pz: "<< pi0.pz() <<endl;
 	HepPoint3D pi0DecPoint;
@@ -1105,15 +1190,29 @@ namespace Belle {
 	//      v_drAll.push_back();
 	if(m_mc)
 	  {
-	  pidWeight*=pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr);
-	  //	  if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-	  if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
-	    {
-	      cout <<"pi0 pidweight : " << pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
-	    }
+	    pidWeight*=pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr);
+	    //	  if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
+	    if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+	      {
+		cout <<"pi0 pidweight : " << pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
+	      }
 	  }
       }
-    ///now we should have all the candidates..
+
+////    cout <<" we have " << pi0Candidates.size() <<" pi0s before: " << endl;
+////    for(vector<Particle*>::iterator itp=pi0Candidates.begin();itp!=pi0Candidates.end();itp++)
+////      {
+////	cout <<"energy: " << (*itp)->p().rho();
+////      }
+////    cout <<endl;
+    cleanPi0s();
+////       cout <<" we have " << pi0Candidates.size() <<" pi0s after: " << endl;
+////   for(vector<Particle*>::iterator itp=pi0Candidates.begin();itp!=pi0Candidates.end();itp++)
+////     {
+////	cout <<"energy: " << (*itp)->p().rho();
+////     }
+////   cout <<endl;
+///    ///now we should have all the candidates..
     //    cout <<"we have " << chargedPiCandidates.size() << " pions " << chargedKCandidates.size() <<" kaons " << pi0Candidates.size() <<" pi0 " << KsCandidates.size() <<" Ks " << leptonCandidates.size() <<"leptons " << otherChargedTracks.size() <<" others " <<endl;
 
 
@@ -1121,53 +1220,19 @@ namespace Belle {
     int gammaCount=0;
     for(std::vector<Mdst_gamma>::const_iterator i =gamma_mgr.begin();i!=gamma_mgr.end();i++)
       {
-	if(gammaIds.find(i->get_ID())!=gammaIds.end()){
-	  continue;
-	}
-	Hep3Vector h(i->px(),i->py(),i->pz());
-	const Mdst_gamma& gam=*i;
-	int id=(int)gam.get_ID();
-	double px=gam.px();
-	double py=gam.py();
-	double pz=gam.pz();
-	//does not make sensee because if we only look in the central region for the
-	//computation of the thrust axis, that would change the axis, same for charged
-	///there I take all for the thrust axis and the ones in the central region for
-	//the asymmetry
-	Mdst_ecl_aux &aux =eclaux_mgr(Panther_ID(gam.ecl().get_ID()));
-	if(gam.ecl().quality()!=0)
+
+	if(passGammaQACuts(i))
 	  {
-	    //	    cout <<"loosing photon due to  quality " <<endl;
-	    continue;
+	    const Mdst_gamma& gam=*i;
+	    double px=gam.px();
+	    double py=gam.py();
+	    double pz=gam.pz();
+	    
+	    double gammaE=sqrt(px*px+py*py+pz*pz);
+	    v_gammaE.push_back(gammaE);
 	  }
-	//ratio of energy in 3x3 cluster compared to 5x5 cluster in emcal
-	double e9oe25 =aux.e9oe25();
-	double gammaE=sqrt(px*px+py*py+pz*pz);
-	Hep3Vector photVec(px, py,pz);
-	v_gammaE.push_back(gammaE);
-	//barrel energy cut is the lowest
-	if(gammaE<cuts::minGammaEBarrel)
-	  {
-	    //	    cout <<" loosing photon in barrel due to energy cut " << gammaE<<endl;
-	    continue;
-	  }
-	float photTheta= photVec.theta();
-	if(photTheta >cuts::barrelThetaMax) 
-	  {
-	    if(gammaE<cuts::minGammaEEndcapBkwd)
-	      {
-		//	    cout <<" loosing photon in forwrad endcap due to energy cut " << gammaE<<endl;
-		continue;
-	      }
-	  }
-	if(photTheta< cuts::barrelThetaMin)
-	  {
-	    if(gammaE<cuts::minGammaEEndcapFwd)
-	      {
-		//	    cout <<" loosing photon in backward endcap due to energy cut " << gammaE<<endl;
-		continue;
-	      }
-	  }
+
+	
       }
 
 
@@ -1286,10 +1351,28 @@ namespace Belle {
     treeData.recDDoubleStar=0;
     double bestMNu2=100000;
     int bestDIndex=-1;
+
+    //do the best D separately for D,D* and  n=1,2
+    float bestMDiff_D1=100000;
+    float bestMDiff_D2=100000;
+    float bestMDiff_DStar1=100000;
+    float bestMDiff_DStar2=100000;
+
+    int bestDIndex1=-1;
+    int bestDStarIndex1=-1;
+    int bestDIndex2=-1;
+    int bestDStarIndex2=-1;
+
     bool mcDecaySignature=false;
     bool foundRecDecay=false;
     if(m_mc)
       mcDecaySignature=(sig_FoundDDoubleStar && sig_numLeptons==1 && sig_numKaons==0 && (sig_numPions==1 || sig_numPions==2) && sig_numPi0==0 && sig_numBaryons==0);
+
+    if(mcDecaySignature)
+      {
+	//      cout <<"found decay, D** id is: "<< dDoubleStarId <<endl;
+      }
+
     treeData.bestBCharge=bestBcand.charge();
 
     treeData.pidCorrection=pidWeight;
@@ -1314,15 +1397,29 @@ namespace Belle {
 	  }
 	dtype=(DType)((int)dtype+1);
 
-
 	for(vector<Particle*>::iterator itD=dMesons->begin();itD!=dMesons->end();itD++)
 	  {
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>((*itD)->userInfo());
+
+	    /////---get the new field DDiff, DStarDiff, hypDMass1, hypDMass2
+	    float DDiff=-1;
+	    float DStarDiff=-1;
+	    float hypDMass1=-1;
+	    float hypDMass2=-1;
+
+	    ////----
+
+
+
 	    double dCharge=(*itD)->charge();
 	    //	    cout <<"dcharge: " << dCharge <<endl;
 	    vector<Particle*> localPiCandidates;
 	    for(vector<Particle*>::iterator itP=chargedPiCandidates.begin();itP!=chargedPiCandidates.end();itP++)
 	      {
 		bool isChild=false;
+		if(checkDoubleUse(*(*itD),*(*itP)))
+		  isChild=true;
+
 		for(int i=0;i<(*itD)->nChildren();i++)
 		  {
 		    Particle& child=(*itD)->child(i);
@@ -1348,6 +1445,8 @@ namespace Belle {
 	    for(vector<Particle*>::iterator itK=chargedKCandidates.begin();itK!=chargedKCandidates.end();itK++)
 	      {
 		bool isChild=false;
+		if(checkDoubleUse(*(*itD),*(*itK)))
+		  isChild=true;
 		for(int i=0;i<(*itD)->nChildren();i++)
 		  {
 		    if((*itD)->child(i).relation().isIdenticalWith((*itK)->relation()))
@@ -1395,6 +1494,18 @@ namespace Belle {
 		    pionMom+=localPiCandidates[i]->p();
 		  }
 	      }
+
+	    ///in the ==1 case, hypDMass doesn't make sense, since it is equal to mDn anyways...
+	    if(numPions==2)
+	      {
+		Particle& D=*(*itD);
+		hypDMass1=(D.p()+localPiCandidates[0]->p()).mag();
+		hypDMass2=(D.p()+localPiCandidates[1]->p()).mag();
+	      }
+
+	    ///
+
+
 	    //	    cout <<"pionCharge: " << pionCharge <<" lepton Charge: "<< leptonCharge <<" sum: "<< pionCharge+leptonCharge+dCharge <<endl;
 
 	    if(PRINT)
@@ -1405,8 +1516,10 @@ namespace Belle {
 	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
 	  
 
-		    //	    cout <<" using pidWeight: "<< pidWeight <<" B Br weight: " << B_BR_CorrectionFactor << " D BR factor: "<< D_BR_CorrectionFactor<<endl;
-	    treeData.systemCharge=pionCharge+leptonCharge+dCharge;
+	    //	    cout <<" using pidWeight: "<< pidWeight <<" B Br weight: " << B_BR_CorrectionFactor << " D BR factor: "<< D_BR_CorrectionFactor<<endl;
+	    treeData.systemCharge[treeData.size]=pionCharge+leptonCharge+dCharge;
+	    treeData.leptonCharge[treeData.size]=leptonCharge;
+	    treeData.dCharge[treeData.size]=dCharge;
 
 	    if(recDecaySignature)
 	      {
@@ -1419,6 +1532,7 @@ namespace Belle {
 		//get this by computing B_sl direction from B_tag. B tag is saved in 'bestBCand' particle, so 
 		//I assume that the B_sl momentum is just the mirrored momentum;
 		float mNu2=0;		
+		float U=0;
 		HepLorentzVector bMomentum=bestBcand.p();
 		//	    cout <<"best b cand px: " << -sigBPx << " py: " << -sigBPy << " pz: "<< -sigBPz <<" e: " << sigE <<endl;
 		//doesn't make sense to just flip the sign of p, since we are not in the CMS
@@ -1440,6 +1554,9 @@ namespace Belle {
 		treeData.bestD[treeData.size]=0;
 		treeData.numRecPions[treeData.size]=numPions;
 		treeData.mDnPi[treeData.size]=(D.p()+pionMom).mag();
+		treeData.dDecay[treeData.size]=pinf.decayChannel;
+		treeData.dType[treeData.size]=pinf.type;
+
 		if(leptonCandidates.size()>0)
 		  {
 		    treeData.leptonMom[treeData.size]=leptonCandidates[0]->p().vect().mag();
@@ -1478,6 +1595,11 @@ namespace Belle {
 		    treeData.pi2Phi[treeData.size]=-999;
 		  }
 
+		//see babar paper
+		HepLorentzVector p4Miss=(kinematics::pBeam-bMomentum-Pxl);
+		float E_miss=p4Miss.e();
+		U=E_miss-p4Miss.vect().mag();
+
 		mNu2=(kinematics::pBeam-bMomentum-Pxl).mag2();
 		if(mNu2<bestMNu2)
 		  {
@@ -1485,6 +1607,46 @@ namespace Belle {
 		    bestDIndex=treeData.size;
 		  }
 
+		///best selection based on D Diff
+		//because it was already incremented
+		DType tmpDtype=(DType)((int)dtype-1);
+		if(numPions==1 && tmpDtype!=dtype_DStar)
+		  {
+		    if(fabs(pinf.pdgDiff)<bestMDiff_D1)
+		      {
+			bestMDiff_D1=fabs(pinf.pdgDiff);
+			bestDIndex1=treeData.size;
+		      }
+		  }
+		if(numPions==1 && tmpDtype==dtype_DStar)
+		  {
+		    if(fabs(pinf.pdgDiff)<bestMDiff_DStar1)
+		      {
+			bestMDiff_DStar1=fabs(pinf.pdgDiff);
+			bestDStarIndex1=treeData.size;
+		      }
+
+		  }
+		if(numPions==2 && tmpDtype!=dtype_DStar)
+		  {
+		    if(fabs(pinf.pdgDiff)<bestMDiff_D2)
+		      {
+			bestMDiff_D2=fabs(pinf.pdgDiff);
+			bestDIndex2=treeData.size;
+		      }
+
+		  }
+		if(numPions==2 && tmpDtype==dtype_DStar)
+		  {
+		    if(fabs(pinf.pdgDiff)<bestMDiff_DStar2)
+		      {
+			bestMDiff_DStar2=fabs(pinf.pdgDiff);
+			bestDStarIndex2=treeData.size;
+		      }
+
+		  }
+
+	      
 		////
 
 		//		sprintf(bufferAll,"%s && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2 || sig_DLNu || sig_DPiLNu|| sig	\
@@ -1496,20 +1658,46 @@ namespace Belle {
 		  {
 		    if(!sig_FoundDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2)
 		      {
-		      if(!sigDLNu && !sigDPiLNu && !sigDPiPiLNu && !sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu)
-			{
-			  cout<<" other BB background evt nr "<< evtNr << " run: "<< runNr  << endl;
-			  Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
-			  for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
-			    {
-			      if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
-				{
-				recursivePrint(*gen_it,"");
-				}
+			if(!sigDLNu && !sigDPiLNu && !sigDPiPiLNu && !sigDStarLNu && !sigDStarPiLNu && !sigDStarPiPiLNu)
+			  {
+			    cout<<" other BB background evt nr "<< evtNr << " run: "<< runNr  << " tag B momentum: " << bMomentum.px() <<", "<< bMomentum.py()<<", " << bMomentum.pz()<<endl;
+			    cout <<" numLept: "<< sig_numLeptons<< " kaons: "<< sig_numKaons <<" pions: "<< sig_numPions <<" pi0s: "<< sig_numPi0 <<" num baryos: "<< sig_numBaryons;
+			    cout <<" numD: "<< sig_numD <<" DStar " << sig_numDStar <<" num rhos: "<< sig_numRhos <<endl;
+
+			    Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+			    int numB=0;
+			    for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+			      {
+				if((fabs(gen_it->idhep())>=500 && fabs(gen_it->idhep()<600)) || (fabs(gen_it->idhep())>=10500 && fabs(gen_it->idhep())<10600))
+				  {
+				    numB++;
+				    recursivePrint(*gen_it,"");
+				  }
 			      
-			    }
+			      }
+			    //			  if(numB<2)
+			    //			    {
+			    //			      cout <<"no B found ?, event:  " <<  endl;
+			    //			      for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+			    //				{
+			    //				  Particle p(*gen_it);
+			    //				  int lund=fabs(gen_it->idhep());
+			    //				  if(lund== 100423 || lund ==100421 ||lund==PY_DStar_2S || lund==100411 || lund==100413 ){
+			    //				    cout <<"nd: " << lund << endl;
+			    //				  }
+			    //				  else{
+			    //				    //for some reason some ids make the particle class crash when asked for the name...
+			    //				    if(lund<10000)
+			    //				      cout <<p.pType().name()<<" (" << gen_it->idhep()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
+			    //				    else
+			    //				      cout  <<" (" << gen_it->idhep()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
+			    //				  }
+			    //
+			    //				}
+			    //
+			    //			    }
 			  
-			}
+			  }
 		      }
 		    
 		  }
@@ -1575,8 +1763,10 @@ namespace Belle {
 			cout <<"small nu but did not find any" <<endl;
 		      }
 		  }
-
-
+		if(tmpDtype==dtype_DStar)
+		  treeData.DStarDiff[treeData.size]=pinf.pdgDiff;
+		else
+		  treeData.DDiff[treeData.size]=pinf.pdgDiff;
 		treeData.recDType[treeData.size]=dtype;
 		//		cout <<"mNu: " << mNu <<endl;
 		//		cout <<"lepton mass: "<< leptonCandidates[0]->p().mag()<<endl;
@@ -1593,9 +1783,14 @@ namespace Belle {
 		//	    cout <<"mNu: "<< mNu<< " mNu2: "<< mNu2 <<endl;
 		//	    mNu=(bMomentum-Pxl).mag();
 		//mNu=(sigBMom-Pxl).m();
+		treeData.U[treeData.size]=U;
 		treeData.mNu2[treeData.size]=mNu2;
 		treeData.mXl[treeData.size]=Pxl.mag();
 		treeData.mB[treeData.size]=bMomentum.mag();
+		treeData.hypDMass1[treeData.size]=hypDMass1;
+		treeData.hypDMass2[treeData.size]=hypDMass2;
+
+
 		treeData.size++;
 		//		cout <<"got mNu: " << mNu <<endl;
 
@@ -1603,8 +1798,15 @@ namespace Belle {
 		//////////
 		//		if(treeData.recBToDlNuPi==1 || treeData.recBToDlNuPiPi==1)
 		//		if(treeData.foundDPiPi==1 || foundSinglePionDecay)
-		if(fabs(mNu2)<0.05)
+		if(fabs(mNu2)<0.1)
 		  {
+		    if(PRINT)
+		      {
+			if(numPions==2&& sig_FoundDDoubleStar)
+			  {
+			    cout <<" found DDstar and two pions" <<endl;
+			  }
+		      }
 		    if(PRINT)
 		      cout <<" -------"<<endl<<endl;
 		    if(PRINT)
@@ -1747,15 +1949,51 @@ namespace Belle {
 	  }
       }
   
+    /////--->Don't select best D based on mNu2 (bias), instead using best Ds (separately for n12, D and DStar
+
+    //priority to DStar
+    if(bestDStarIndex1>=0 && bestDStarIndex1<1000)
+      {
+	treeData.bestD[bestDStarIndex1]=1;
+      }
+    else
+      {
+	if(bestDIndex1>=0 && bestDIndex1<1000)
+	  {
+	    treeData.bestD[bestDIndex1]=1;
+	  }
+      }
+    //do n=1 and n=2 separately (we can tell by the numPions field)
+    if(bestDStarIndex2>=0 && bestDStarIndex2<1000)
+      {
+	treeData.bestD[bestDStarIndex2]=1;
+      }
+    else
+      {
+	if(bestDIndex2>=0 && bestDIndex2<1000)
+	  {
+	    treeData.bestD[bestDIndex2]=1;
+	  }
+      }
 
     //    cout <<"done combining.." <<endl;
-    if(bestDIndex>=0 && bestDIndex < 1000)
-      {
-	treeData.bestD[bestDIndex]=1;
-      }
+    //    if(bestDIndex>=0 && bestDIndex < 1000)
+    //      {
+    //	treeData.bestD[bestDIndex]=1;
+    //      }
+////    if(treeData.size>1)
+////      {
+////	cout<<" we have several D candidates..with " <<endl;
+////	for(int i=0;i<treeData.size;i++)
+////	  {
+////	    	    cout << treeData.numRecPions[i] << ", ";
+////	  }
+////	cout <<" rec pions " <<endl;
+////	printUse();
+////      }
     treeData.recDecaySignature=foundRecDecay;
     treeData.mcDecaySignature=mcDecaySignature;
-    if(foundRecDecay)
+    if(foundRecDecay || sigResDLNu || sigResDPiLNu || sigResDPiPiLNu || sigResDStarLNu || sigResDStarPiLNu || sigResDStarPiPiLNu)
       {
 	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
 	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
@@ -1763,6 +2001,7 @@ namespace Belle {
 	saveTree();
 	//	cout <<"indeed foundRec " <<endl;
       }
+    //so as not to save twice
     if(mcDecaySignature&& !foundRecDecay)
       {
 	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
@@ -2061,15 +2300,15 @@ namespace Belle {
     int lund=gen_it.idhep();
     if(lund==211)
       {
-      Pip++;
-      return true;}
+	Pip++;
+	return true;}
     if(lund ==-211)
       {
 	Pim++;return true;}
     if(lund==321)
       {
-      Kp++;
-      return true;
+	Kp++;
+	return true;
       }
     if(lund==-321)
       {
@@ -2078,8 +2317,8 @@ namespace Belle {
       }
     if(lund==111)
       {
-      Pi0++;
-      return true;
+	Pi0++;
+	return true;
       }
     if(lund==310)
       {
@@ -2375,8 +2614,8 @@ namespace Belle {
       //for some reason some ids make the particle class crash when asked for the name...
       if(lund<10000)
 	cout <<s<<p.pType().name()<<" (" << gen_it.idhep()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
-else
-  cout  <<s<<" (" << gen_it.idhep()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
+      else
+	cout  <<s<<" (" << gen_it.idhep()<<"), "<<" |p|: " <<p.p().rho()<< " ("<<p.p().px()<<", " << p.p().py()<< ", " << p.p().pz() <<", "<< p.p().t()<<")" <<endl;
     }
     if(daughters->size()<=0)
       {
@@ -2692,6 +2931,7 @@ else
 	    int tempNumLeptons=0;
 	    int tempNumPions=0;
 	    int tempNumKaons=0;
+	    int tempNumRhos=0;
 	    int tempNumPi0=0;
 	    int tempNumBaryons=0;
 	    int tempNumD=0;
@@ -2778,6 +3018,7 @@ else
 	    tempNumLeptons=0;
 	    tempNumPions=0;
 	    tempNumKaons=0;
+	    tempNumRhos=0;
 	    tempNumPi0=0;
 	    tempNumBaryons=0;
 	    tempNumD=0;
@@ -2785,9 +3026,13 @@ else
 	    tempNumDStar2S=false;
 	    tempNumDStarD2S=false;
 	    tempNumNu=0;
+	    mc_piMom.clear();
+	    mc_piTheta.clear();
+	    mc_piPhi.clear();
+	    mc_piFound.clear();
 
 	    //and the other call for the 'regular' decay signature search where we trace the D decays
-	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S);
+	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumRhos,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S);
 
 	    if(evtNr==74850 &&  runNr== 879)
 	      {
@@ -2795,8 +3040,37 @@ else
 		cout  <<" pions? " << tempNumPions <<" pi0? " << tempNumPi0 << " baryons? " << tempNumBaryons;
 		cout  <<" D*? " << tempNumDStar  <<" D**? " << tempFoundDDoubleStar <<" D*(2S)? " << tempNumDStar2S <<" D*(2SD) ? " << tempNumDStarD2S << endl;
 	      }
+	    if((tempNumDStar==1|| tempNumD==1) && tempNumNu==1 && tempNumLeptons==1)
+	      {
+		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0)// && tempNumD==0)
+		  {
+		    if(tempNumPions==1)
+		      {
+			treeData.pi1Mom_mc=mc_piMom[0];
+			treeData.pi1Theta_mc=mc_piTheta[0];
+			treeData.pi1Phi_mc=mc_piPhi[0];
+			treeData.pi1Found=mc_piFound[0];
 
-	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+		      }
+		    if(tempNumPions==2)
+		      {
+
+			treeData.pi1Mom_mc=mc_piMom[0];
+			treeData.pi1Theta_mc=mc_piTheta[0];
+			treeData.pi1Phi_mc=mc_piPhi[0];
+			treeData.pi1Found=mc_piFound[0];
+			treeData.pi2Mom_mc=mc_piMom[1];
+			treeData.pi2Theta_mc=mc_piTheta[1];
+			treeData.pi2Phi_mc=mc_piPhi[1];
+
+			treeData.pi2Found=mc_piFound[1];
+		      }
+
+
+		  }
+	      }
+
+	    if(tempNumD==1 && tempNumNu==1 && tempNumLeptons==1)
 	      {
 		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumDStar==0)
 		  {
@@ -2835,34 +3109,65 @@ else
 		    //		      cout <<"found Dlnu npi decay for tag b " <<endl;
 		    //		    else
 		    //		      cout <<"not best Dlnu..." <<endl;
+		    if(!tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+		      {
+			if(tempNumPions==0)
+			  sigDLNu++;
+			if(tempNumPions==1)
+			  sigDPiLNu++;
+			if(tempNumPions==2)
+			  sigDPiPiLNu++;
+		      }
+		    else
+		      {
+			if(tempNumPions==0)
+			  sigResDLNu++;
+			if(tempNumPions==1)
+			  sigResDPiLNu++;
+			if(tempNumPions==2)
+			  sigResDPiPiLNu++;
+		
 
-		    if(tempNumPions==0)
-		      sigDLNu++;
-		    if(tempNumPions==1)
-		      sigDPiLNu++;
-		    if(tempNumPions==2)
-		      sigDPiPiLNu++;
-
+		      }
 		  }
 
 	      }
-	    if(tempNumDStar==1 && tempNumNu==1 && tempNumLeptons==1 && !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+	  
+	    ////add the other relevant hadronic channels
+
+	    ///
+	  
+	    if(tempNumDStar==1 && tempNumNu==1 && tempNumLeptons==1)
 	      {
 		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && tempNumD==0)
 		  {
-		    if(tempNumPions==0)
-		      sigDStarLNu++;
-		    if(tempNumPions==1)
-		      sigDStarPiLNu++;
-		    if(tempNumPions==2)
-		      sigDStarPiPiLNu++;
+		    if( !tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
+		      {
+			if(tempNumPions==0)
+			  sigDStarLNu++;
+			if(tempNumPions==1)
+			  sigDStarPiLNu++;
+			if(tempNumPions==2)
+			  sigDStarPiPiLNu++;
+		      }
+		    else
+		      {
+			if(tempNumPions==0)
+			  sigResDStarLNu++;
+			if(tempNumPions==1)
+			  sigResDStarPiLNu++;
+			if(tempNumPions==2)
+			  sigResDStarPiPiLNu++;
+		      }
 		  }
 		
 	      }
 	  
-	    //haven't found it yet...
+
+	    //haven't found it yet... (note that this uses different variables. So not the tmp version from above which is only there to check if a certain decay mode is found
+	    //the below is only for the case that there is a double star, to check for sig_numpi etc...
 	    if(!sig_FoundDDoubleStar)
-	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numPi0,sig_numBaryons,sig_numD, sig_numDStar,tempNumNu, sig_dStar_2S, sig_d_2S);
+	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numRhos,sig_numPi0,sig_numBaryons,sig_numD, sig_numDStar,tempNumNu, sig_dStar_2S, sig_d_2S);
 	    if(!sig_FoundDDoubleStar)
 	      {
 		//still none, so reset fields
@@ -2873,6 +3178,13 @@ else
 		sig_numBaryons=0;
 		sig_numD=0;
 		sig_numDStar=0;
+		sig_numRhos=0;
+	      }
+	    else
+	      {
+		//		cout<<" found D** for decay of " << gen_it->idhep();
+		//		cout <<" numLept: "<< sig_numLeptons<< " kaons: "<< sig_numKaons <<" pions: "<< sig_numPions <<" pi0s: "<< sig_numPi0 <<" num baryos: "<< sig_numBaryons;
+		//		cout <<" numD: "<< sig_numD <<" DStar " << sig_numDStar <<" num rhos: "<< sig_numRhos <<endl;
 	      }
 	  
 	    bMesonId= gen_it->get_ID();
@@ -3305,50 +3617,50 @@ else
 	//cout <<"dstar" <<endl;
 	br_Decays[br_sig_DStar]=1;
 	return true;
-	}
+      }
     if(lund==PY_DStar0)
       {
-      br_Decays[br_sig_DStar0]=1;
+	br_Decays[br_sig_DStar0]=1;
 	return true;
       }
     if(lund==10413)
       {
-      br_Decays[br_sig_D1]=1;
+	br_Decays[br_sig_D1]=1;
 	return true;
       }
     if(PY_DStar_2==lund)
       {
-      br_Decays[br_sig_D2]=1;
+	br_Decays[br_sig_D2]=1;
 	return true;
       }
     if(lund==20413)
       {
-      br_Decays[br_sig_D1Prime]=1;
+	br_Decays[br_sig_D1Prime]=1;
 	return true;
       }
     if(PY_DStar0Plus==lund)
       {
-      br_Decays[br_sig_D0Star]=1;
+	br_Decays[br_sig_D0Star]=1;
 	return true;
       }
     if(PY_D_10==lund)
       {
-      br_Decays[br_sig_D10]=1;
+	br_Decays[br_sig_D10]=1;
 	return true;
       }
     if(PY_DStar_20==lund)
       {
-      br_Decays[br_sig_D20]=1;
+	br_Decays[br_sig_D20]=1;
 	return true;
       }
     if(20423==lund)
       {
-      br_Decays[br_sig_D1Prime0]=1;
+	br_Decays[br_sig_D1Prime0]=1;
 	return true;
       }
     if(PY_DStar_00==lund)
       {
-      br_Decays[br_sig_D0Star0]=1;
+	br_Decays[br_sig_D0Star0]=1;
 	return true;
       }
     ///////
@@ -3403,7 +3715,7 @@ else
   }
 
   //see if this B has any bDoubleSTar and count number of charged pions, kaons, pi0s (so independent of the actual decay)
-  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar, int& numNu, bool& dStar_2S, bool& d_2S)
+  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos,int& numPi0, int& numBaryons,int& numD, int& numDStar, int& numNu, bool& dStar_2S, bool& d_2S, bool trackRhoDecay)
   {
     genhep_vec* daughters=getDaughters(mother);
     int lund=fabs(mother.idhep());
@@ -3411,9 +3723,11 @@ else
       return false;
     Particle p(mother);
     //the ones with 20* are D'
-    if(lund==PY_DStar_00|| lund==PY_DStar0Plus|| lund==PY_DStar_0s|| lund==PY_DStar0Plus|| lund==PY_D_1 || lund==PY_D_10 || lund==PY_DStar_2 || lund==PY_DStar_20 || lund==100413 || lund == 20423 ||lund ==20413|| lund==100421 || lund==100411)
+    if(lund==PY_DStar_00|| lund==PY_DStar0Plus|| lund==PY_DStar_0s|| lund==PY_DStar0Plus|| lund==PY_D_1 || lund==PY_D_10 || lund==PY_DStar_2 || lund==PY_DStar_20 || lund==100413 || lund == 20423 ||lund ==20413|| lund==100421 || lund==100411 || lund==100423)
       {
 	dDoubleStar=true;
+	//	cout <<"found ddouble star: "<< lund <<endl;
+	dDoubleStarId=lund;
       }
     if(lund==100421|| lund==100411)
       d_2S=true;
@@ -3425,6 +3739,13 @@ else
 	numD++;
 	return true;
       }
+    if(lund==PY_RHO_0)
+      {
+	numRhos++;
+	//determines if the pions we find from the rho decay are counting into the number of pions or not
+	if(!trackRhoDecay)
+	  return true;
+      }
     if(lund==PY_DStar || lund==PY_DStar0)
       {
 	//don't add D decay products to number of pions etc...
@@ -3434,6 +3755,18 @@ else
 
     if(lund==PY_PI) 
       {
+	///get mom, theta, phi 
+    //	    Gen_hepevt hepEvt=get_hepevt(p->mdstCharged());
+	mc_piMom.push_back(p.ptot());
+	mc_piPhi.push_back(p.p3().theta());
+	mc_piTheta.push_back(p.p3().phi());
+
+	if(foundChargedDecIds.find(p.mdstCharged().get_ID())!=foundChargedDecIds.end())
+	  mc_piFound.push_back(true);
+	else
+	  mc_piFound.push_back(false);
+
+
 	numPions++;
 	return true;
       }
@@ -3476,7 +3809,7 @@ else
       }    
     for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
       {
-	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S);
+	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numRhos,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S,trackRhoDecay);
       }
   }
 
@@ -3756,23 +4089,64 @@ else
 	    dDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.7 && m<2.0)
+		  {
+		    if(m_mc)
+		      {
+			//		Gen_hepevt hepEvt=get_hepevt(leptonCandidates[0]->mdstCharged());
+			const Mdst_charged &h_kCharged=kaon.mdstCharged();
+			const Mdst_charged &h_pCharged=pion.mdstCharged();
+			const Gen_hepevt &h_1=get_hepevt(h_kCharged);
+			const Gen_hepevt &h_2=get_hepevt(h_pCharged);
+			int tempSig=0;
+			if(h_1 && h_2 && commonParent(&h_1,&h_2,0,0,0))
+			  {
+			    tempSig=1;
+			  }
+			
+			dIsSignal=0;
+			if(h_1 && h_2 && h_1.mother() && h_2.mother()  && h_1.mother().get_ID()==h_2.mother().get_ID() ){
+			  dIsSignal=1;
+			}
+			if(dIsSignal!=tempSig)
+			  {
+			    //			    			    cout <<"!!!"<<endl<<endl;
+			    //			    			    cout<<"mismatch between parent finding!! : "<< tempSig<<" old metod: "<< dIsSignal<<endl;
+			    //			      cout <<"!!!"<<endl<<endl;
+			    //			    //			    			      recursivePrint(h_1.mother().mother(),"");
+			    //			      cout <<"second " << endl;
+			    //			    			      recursivePrint(h_2.mother().mother(),"");
+			    //						      cout <<"done " <<endl<<endl;
+
+			  }
+		      }
+		    mesonMassTree->Fill();
+		  }
+
 	      }
-
-
-	    Particle* d0 =new Particle(p_d0,Ptype(kaon.charge()<0 ? "D0" : "D0B"));
-	    //	if(!doKmVtxFit2(*(*itD),  confLevel,0))
-
-
+	  
 	    if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
+	    Particle* d0 =new Particle(p_d0,Ptype(kaon.charge()<0 ? "D0" : "D0B"));
+	    d0->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_D0;
+
+	    //putddecay
+	    //	if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 	    d0->relation().append(kaon);
 	    d0->relation().append(pion);
 	    if(m_mc)
 	      {
-		const Gen_hepevt &h_kaon=kaon.genHepevt();
-		const Gen_hepevt &h_pion=pion.genHepevt();
+
+		const Mdst_charged &h_kCharged=kaon.mdstCharged();
+		const Mdst_charged &h_pCharged=pion.mdstCharged();
+		const Gen_hepevt &h_kaon=get_hepevt(h_kCharged);
+		const Gen_hepevt &h_pion=get_hepevt(h_pCharged);
+		
+	
 		if(h_kaon && h_pion && h_kaon.mother() && h_pion.mother() && h_kaon.mother().get_ID()==h_pion.mother().get_ID()){
 		  d0->relation().genHepevt(h_kaon.mother());
 		}
@@ -3796,6 +4170,14 @@ else
 		Particle& kaon= *(*itK);
 		if(kaon.charge()+pion.charge()!=0) continue;
 		HepLorentzVector p_d0=pion.p()+kaon.p()+pi0.p();
+
+		//result of check below: yes, there are mdst set
+		//		cout <<"checking mdst for pi0: ";
+		//		if(pi0.mdstPi0())
+		//		  cout <<"yes " <<endl;
+		//		else
+		//		  cout <<"no " <<endl;
+		
 		double m=p_d0.mag();
 
 		histoRecD0Spect->Fill(m);
@@ -3809,21 +4191,55 @@ else
 		  foundDDoubleStarDecay=0;
 		if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		  {
-		    if(m>1.0)
-		      mesonMassTree->Fill();
+		    if(m>1.7 && m<2.0)
+		      {
+	
+			if(m_mc)
+			  {
+
+			    const Mdst_charged &h_c1=kaon.mdstCharged();
+			    const Mdst_charged &h_c2=pion.mdstCharged();
+			    const Mdst_pi0 &h_c3=pi0.mdstPi0();
+			    const Gen_hepevt &h_1=get_hepevt(h_c1);
+			    const Gen_hepevt &h_2=get_hepevt(h_c2);
+			    const Gen_hepevt &h_3=get_hepevt(h_c3);
+	
+			    dIsSignal=0;
+			    if(h_1 && h_2 && h_3)
+			      {
+				if(commonParent(&h_1,&h_2,&h_3,0,0)){
+				  dIsSignal=1;
+				}
+			      }
+			  }
+			mesonMassTree->Fill();
+		      }
 		  }
+
+	      
 
 		if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
 		Particle* d0 =new Particle(p_d0,Ptype(kaon.charge()<0 ? "D0" : "D0B"));
+		d0->userInfo(*(new ParticleInfoDecay()));
+		ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+		pinf.decayChannel=dDecay;
+		pinf.type=dType;
+		pinf.pdgDiff=m-m_D0;
 		d0->relation().append(kaon);
 		d0->relation().append(pion);
 		d0->relation().append(pi0);
 		if(m_mc)
 		  {
-		    const Gen_hepevt &h_kaon=kaon.genHepevt();
-		    const Gen_hepevt &h_pion=pion.genHepevt();
-		    const Gen_hepevt &h_pi0=pi0.genHepevt();
-		    if(h_pi0&&h_kaon && h_pion && h_kaon.mother() && h_pion.mother() && h_kaon.mother().get_ID()==h_pion.mother().get_ID() && h_pi0.mother() && h_pi0.mother()==h_kaon.mother()){
+		    const Mdst_charged &h_c1=kaon.mdstCharged();
+		    const Mdst_charged &h_c2=pion.mdstCharged();
+		    const Mdst_pi0 &h_c3=pi0.mdstPi0();
+		    const Gen_hepevt &h_kaon=get_hepevt(h_c1);
+		    const Gen_hepevt &h_pion=get_hepevt(h_c2);
+		    const Gen_hepevt &h_pi0=get_hepevt(h_c3);
+
+
+		    //		    if(h_pi0&&h_kaon && h_pion && h_kaon.mother() && h_pion.mother() && h_kaon.mother().get_ID()==h_pion.mother().get_ID() && h_pi0.mother() && h_pi0.mother().get_ID()==h_kaon.mother().get_ID()){
+		    if(h_kaon && h_pion && h_pi0&&commonParent(&h_kaon,&h_pion,&h_pi0,0,0)){
 		      d0->relation().genHepevt(h_kaon.mother());
 		    }
 		  }
@@ -3860,26 +4276,64 @@ else
 		      foundDDoubleStarDecay=0;
 		    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		      {
-			if(m>1.0)
-			  mesonMassTree->Fill();
+			if(m>1.7 && m<2.0)
+			  {
+	
+			    if(m_mc)
+			      {
+
+
+				const Mdst_charged &h_c1=pion1.mdstCharged();
+				const Mdst_charged &h_c2=pion2.mdstCharged();
+				const Mdst_charged &h_c3=pion3.mdstCharged();
+				const Mdst_charged &h_c4=kaon.mdstCharged();
+				const Gen_hepevt &h_1=get_hepevt(h_c1);
+				const Gen_hepevt &h_2=get_hepevt(h_c2);
+				const Gen_hepevt &h_3=get_hepevt(h_c3);
+				const Gen_hepevt &h_4=get_hepevt(h_c4);
+
+
+				dIsSignal=0;
+				if(h_1 && h_2 &&h_3&& h_4&&  h_1.mother() && h_2.mother() && h_3.mother() && h_4.mother()  && h_1.mother().get_ID()==h_2.mother().get_ID() && h_1.mother().get_ID()==h_3.mother().get_ID() && h_1.mother().get_ID()==h_4.mother().get_ID()){
+				  dIsSignal=1;
+				}
+			      } 
+			    mesonMassTree->Fill();
+			  }
 		      }
+
+
+		      
 		    histoRecD0Spect->Fill(m);
 		    if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
 		    Particle* d0 =new Particle(p_d0,Ptype(kaon.charge()<0 ? "D0" : "D0B"));
+		    d0->userInfo(*(new ParticleInfoDecay()));
+		    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+		    pinf.decayChannel=dDecay;
+		    pinf.type=dType;
+		    pinf.pdgDiff=m-m_D0;
 		    d0->relation().append(kaon);
 		    d0->relation().append(pion1);
 		    d0->relation().append(pion2);
 		    d0->relation().append(pion3);
 		    if(m_mc)
 		      {
-			const Gen_hepevt &h_kaon=kaon.genHepevt();
-			const Gen_hepevt &h_pion1=pion1.genHepevt();
-			const Gen_hepevt &h_pion2=pion2.genHepevt();
-			const Gen_hepevt &h_pion3=pion3.genHepevt();
+
+
+			const Mdst_charged &h_c1=pion1.mdstCharged();
+			const Mdst_charged &h_c2=pion2.mdstCharged();
+			const Mdst_charged &h_c3=pion3.mdstCharged();
+			const Mdst_charged &h_c4=kaon.mdstCharged();
+			const Gen_hepevt &h_pion1=get_hepevt(h_c1);
+			const Gen_hepevt &h_pion2=get_hepevt(h_c2);
+			const Gen_hepevt &h_pion3=get_hepevt(h_c3);
+			const Gen_hepevt &h_kaon=get_hepevt(h_c4);
+
+
 		    
 			if(h_kaon && h_pion1 && h_pion2&&h_pion3){
 			  if(h_kaon.mother() && h_pion1.mother() &&h_pion2.mother() && h_pion3.mother()){
-			    if( h_kaon.mother().get_ID()==h_pion1.mother().get_ID() && h_pion1.mother()==h_pion2.mother() && h_pion2.mother()==h_pion2.mother()){
+			    if( h_kaon.mother().get_ID()==h_pion1.mother().get_ID() && h_pion1.mother().get_ID()==h_pion2.mother().get_ID() && h_pion2.mother().get_ID()==h_pion2.mother().get_ID()){
 			      d0->relation().genHepevt(h_kaon.mother());
 			    }
 			  }
@@ -3901,7 +4355,7 @@ else
 		Particle& pion1=*(*itP1);
 		Particle& pion2= *(*itP2);
 		Particle& Ks= *(*itKs);
-		if(pion1.charge()+pion2.charge()!=0) continue;
+		if((pion1.charge()+pion2.charge())!=0) continue;
 		HepLorentzVector p_d0=pion1.p()+pion2.p()+Ks.p();
 		double m=p_d0.mag();
 		dMass=m;
@@ -3914,22 +4368,63 @@ else
 		  foundDDoubleStarDecay=0;
 		if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		  {
-		    if(m>1.0)
-		      mesonMassTree->Fill();
+		    if(m>1.85 && m<1.875)
+		      {
+			if(m_mc)
+			  {
+			    const Mdst_charged &h_c1=pion1.mdstCharged();
+			    const Mdst_charged &h_c2=pion2.mdstCharged();
+			    const Mdst_vee2 &h_c3=Ks.mdstVee2();
+			    if(h_c3)
+			      {
+				cout <<"found ks mc particle "<< endl;
+			      }
+			    const Gen_hepevt &h_1=get_hepevt(h_c1);
+			    const Gen_hepevt &h_2=get_hepevt(h_c2);
+			    const Gen_hepevt &h_3=get_hepevt(h_c3);
+
+
+			    dIsSignal=0;
+			    //			    cout <<"trying the common parent thing  " << endl;
+			    if(h_1 && h_2 && h_3)
+			      {
+				if(commonParent(&h_1,&h_2,&h_3,0,0))
+				  {
+				    //				cout <<"signal is !!!" <<endl;
+				    dIsSignal=1;
+				  }
+			      }
+			  }
+			mesonMassTree->Fill();
+		      }
 		  }
+
+		  
 		histoRecD0Spect->Fill(m);
 		if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
 		//		Particle* d0 =new Particle(p_d0,Ptype(k/.charge()<0 ? "D0" : "D0B"));
 		Particle* d0 =new Particle(p_d0,Ptype("D0"));
+		d0->userInfo(*(new ParticleInfoDecay()));
+		ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+		pinf.decayChannel=dDecay;
+		pinf.type=dType;
+		pinf.pdgDiff=m-m_D0;
 		d0->relation().append(pion1);
 		d0->relation().append(pion2);
 		d0->relation().append(Ks);
 		if(m_mc)
 		  {
-		    const Gen_hepevt &h_pion1=pion1.genHepevt();
-		    const Gen_hepevt &h_pion2=pion2.genHepevt();
-		    const Gen_hepevt &h_Ks=Ks.genHepevt();
-		    if(h_pion1&&h_pion2 && h_Ks&& h_pion1.mother() && h_pion2.mother() && h_Ks.mother() && h_pion1.mother().get_ID()==h_pion2.mother().get_ID() && h_pion1.mother()==h_Ks.mother()){
+
+		    const Mdst_charged &h_c1=pion1.mdstCharged();
+		    const Mdst_charged &h_c2=pion2.mdstCharged();
+		    const Mdst_vee2 &h_c3=Ks.mdstVee2();
+
+		    const Gen_hepevt &h_pion1=get_hepevt(h_c1);
+		    const Gen_hepevt &h_pion2=get_hepevt(h_c2);
+		    const Gen_hepevt &h_Ks=get_hepevt(h_c3);
+
+		    //		    if(h_pion1&&h_pion2 && h_Ks&& h_pion1.mother() && h_pion2.mother() && h_Ks.mother() && h_pion1.mother().get_ID()==h_pion2.mother().get_ID() && h_Ks.mother().mother()&& h_pion1.mother().get_ID()==h_Ks.mother().mother().get_ID()){
+		    if(h_pion1&& h_pion2&& h_Ks&&commonParent(&h_pion1,&h_pion2,&h_Ks,0,0)){
 		      d0->relation().genHepevt(h_pion1.mother());
 		    }
 		  }
@@ -3958,19 +4453,47 @@ else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.7 && m<2.0)
+		  {
+	
+		    if(m_mc)
+		      {
+			const Mdst_charged &h_c1=kaon1.mdstCharged();
+			const Mdst_charged &h_c2=kaon2.mdstCharged();
+			const Gen_hepevt &h_1=get_hepevt(h_c1);
+			const Gen_hepevt &h_2=get_hepevt(h_c2);
+
+
+			dIsSignal=0;
+			if(h_1 && h_2 && h_1.mother() && h_2.mother()  && h_1.mother().get_ID()==h_2.mother().get_ID()){
+			  dIsSignal=1;
+			}
+		      } 
+		    mesonMassTree->Fill();
+		  }
+
 	      }
+	    
 	    histoRecD0Spect->Fill(m);
 	    //	    cout <<"found k/k combination, filling with m: "<< m <<endl;
 	    if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
 	    Particle* d0 =new Particle(p_d0,Ptype("D0"));
+	    d0->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_D0;
 	    d0->relation().append(kaon1);
 	    d0->relation().append(kaon2);
 	    if(m_mc)
 	      {
-		const Gen_hepevt &h_kaon1=kaon1.genHepevt();
-		const Gen_hepevt &h_kaon2=kaon2.genHepevt();
+
+		const Mdst_charged &h_c1=kaon1.mdstCharged();
+		const Mdst_charged &h_c2=kaon2.mdstCharged();
+		const Gen_hepevt &h_kaon1=get_hepevt(h_c1);
+		const Gen_hepevt &h_kaon2=get_hepevt(h_c2);
+
+
 		if(h_kaon1 && h_kaon2 && h_kaon1.mother() && h_kaon2.mother() && h_kaon1.mother().get_ID()==h_kaon2.mother().get_ID()){
 		  d0->relation().genHepevt(h_kaon1.mother());
 		}
@@ -3998,21 +4521,54 @@ else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.7 && m<2.0)
+		  {
+		    if(m_mc)
+		      {
+			
+			const Mdst_pi0 &h_c1=pi0.mdstPi0();
+			const Mdst_vee2 &h_c2=Ks.mdstVee2();
+			const Gen_hepevt &h_1=get_hepevt(h_c1);
+			const Gen_hepevt &h_2=get_hepevt(h_c2);
+
+
+			dIsSignal=0;
+			//			if(h_1 && h_2 && h_1.mother() && h_2.mother()  &&h_2.mother().mother()&& h_1.mother().get_ID()==h_2.mother().mother().get_ID()){
+			if(h_1 && h_2)
+			  {
+			    if(commonParent(&h_1,&h_2,0,0,0)){
+			      dIsSignal=1;
+			    }
+			  }
+		      } 
+		    mesonMassTree->Fill();
+		  }
 	      }
+
+	      
 	    histoRecD0Spect->Fill(m);
 	    if(m>m_d0mass_max || m < m_d0mass_min ||isnan(m)) continue;
 	    Particle* d0 =new Particle(p_d0,Ptype( "D0"));
+	    d0->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(d0->userInfo());
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_D0;
 	    d0->relation().append(pi0);
 	    d0->relation().append(Ks);
 	    if(m_mc)
 	      {
-		const Gen_hepevt &h_pi0=pi0.genHepevt();
-		const Gen_hepevt &h_Ks=Ks.genHepevt();
-		if(h_pi0 && h_Ks && h_pi0.mother() && h_Ks.mother() && h_pi0.mother().get_ID()==h_Ks.mother().get_ID()){
-		  d0->relation().genHepevt(h_pi0.mother());
-		}
+		const Mdst_pi0 &h_c1=pi0.mdstPi0();
+		const Gen_hepevt &h_pi0=get_hepevt(h_c1);
+		const Mdst_vee2 &h_c2=Ks.mdstVee2();
+		
+		const Gen_hepevt &h_Ks=get_hepevt(h_c2);
+
+		//		if(h_pi0 && h_Ks && h_pi0.mother() && h_Ks.mother() && h_Ks.mother().mother()&&h_pi0.mother().get_ID()==h_Ks.mother().mother().get_ID() )
+		if(h_pi0&& h_Ks &&commonParent(&h_pi0,&h_Ks,0,0,0))
+		  {
+		    d0->relation().genHepevt(h_pi0.mother());
+		  }
 	      } 
 	    D0Candidates.push_back(d0);
 	  }
@@ -4043,21 +4599,53 @@ else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m > 1.7 && m<2.0)
+		  {
+		    if(m_mc)
+		      {
+
+			const Mdst_charged &h_c1=pion.mdstCharged();
+			const Mdst_vee2 &h_c2=Ks.mdstVee2();
+			const Gen_hepevt &h_1=get_hepevt(h_c1);
+			const Gen_hepevt &h_2=get_hepevt(h_c2);
+
+			dIsSignal=0;
+			//			if(h_1 && h_2 && h_1.mother() && h_2.mother() &&h_2.mother().mother() && h_1.mother().get_ID()==h_2.mother().mother().get_ID()){
+			if(h_1 && h_2)
+			  {
+			    if(commonParent(&h_1,&h_2,0,0,0)){
+			      dIsSignal=1;
+			    }
+			  }
+			mesonMassTree->Fill();
+
+		      }
+		  }	  
 	      }
+	      
 	    histoRecDSpect->Fill(m);
 	      
 	    if(m>m_dPlusmass_max || m < m_dPlusmass_min ||isnan(m)) continue;
 	    Particle* dPlus =new Particle(p_dPlus,Ptype(pion.charge() > 0 ? "D+" : "D-"));
+	    dPlus->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dPlus->userInfo());
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_DPlus;
 	    dPlus->relation().append(Ks);
 	    dPlus->relation().append(pion);
 	    if(m_mc)
 	      {
-		const Gen_hepevt &h_Ks=Ks.genHepevt();
-		const Gen_hepevt &h_pion=pion.genHepevt();
-		if(h_Ks && h_pion && h_Ks.mother() && h_pion.mother() && h_Ks.mother().get_ID()==h_pion.mother().get_ID()){
-		  dPlus->relation().genHepevt(h_Ks.mother());
+
+
+		const Mdst_charged &h_c1=pion.mdstCharged();
+		const Mdst_vee2 &h_c2=Ks.mdstVee2();
+		const Gen_hepevt &h_pion=get_hepevt(h_c1);
+		const Gen_hepevt &h_Ks=get_hepevt(h_c2);
+
+		//		if(h_Ks && h_pion && h_Ks.mother() && h_Ks.mother().mother() && h_pion.mother() && h_Ks.mother().mother().get_ID()==h_pion.mother().get_ID()){
+		if(h_pion && h_Ks && commonParent( &h_pion,&h_Ks,0,0,0)){
+		  dPlus->relation().genHepevt(h_pion.mother());
 		}
 	      } 
 	    chargedDCandidates.push_back(dPlus);
@@ -4092,31 +4680,72 @@ else
 		      foundDDoubleStarDecay=0;
 		    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		      {
-			if(m>1.0)
-			  mesonMassTree->Fill();
+			if(m>1.7 && m < 2.0)
+			  {
+			    if(m_mc)
+			      {
+
+				const Mdst_charged &h_c1=pion1.mdstCharged();
+				const Mdst_charged &h_c2=pion2.mdstCharged();
+				const Mdst_charged &h_c3=pion3.mdstCharged();
+				const Mdst_vee2 &h_c4=Ks.mdstVee2();
+				const Gen_hepevt &h_1=get_hepevt(h_c1);
+				const Gen_hepevt &h_2=get_hepevt(h_c2);
+				const Gen_hepevt &h_3=get_hepevt(h_c3);
+				const Gen_hepevt &h_4=get_hepevt(h_c4);
+
+
+
+				dIsSignal=0;
+				//			if(h_1 && h_2 && h_3  && h_4 && h_1.mother() && h_2.mother()  && h_3.mother() &&h_4.mother() && h_4.mother().mother()&& h_1.mother().get_ID()==h_2.mother().get_ID() && h_1.mother().get_ID()==h_3.mother().get_ID() && h_3.mother().get_ID()==h_4.mother().mother().get_ID()){
+				//			    cout <<"trying the common parent thing  again " << endl;
+				if(h_1 && h_2 && h_3&& h_4)
+				  {
+				    if(commonParent(&h_1,&h_2,&h_3,&h_4,0)){
+				      dIsSignal=1;
+				    }
+				  }
+			      } 
+			    mesonMassTree->Fill();
+			  }
 		      }
+		      
+
+		      
 		    histoRecDSpect->Fill(m);
 		    if(m>m_dPlusmass_max || m < m_dPlusmass_min ||isnan(m)) continue;
 		    Particle* dPlus =new Particle(p_dPlus,Ptype(charge >0 ? "D+" : "D-"));
+		    dPlus->userInfo(*(new ParticleInfoDecay()));
+		    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dPlus->userInfo());
+		    pinf.decayChannel=dDecay;
+		    pinf.type=dType;
+		    pinf.pdgDiff=m-m_DPlus;
+
 		    dPlus->relation().append(Ks);
 		    dPlus->relation().append(pion1);
 		    dPlus->relation().append(pion2);
 		    dPlus->relation().append(pion3);
 		    if(m_mc)
 		      {
-			const Gen_hepevt &h_Ks=Ks.genHepevt();
-			const Gen_hepevt &h_pion1=pion1.genHepevt();
-			const Gen_hepevt &h_pion2=pion2.genHepevt();
-			const Gen_hepevt &h_pion3=pion3.genHepevt();
+
+			const Mdst_charged &h_c1=pion1.mdstCharged();
+			const Mdst_charged &h_c2=pion2.mdstCharged();
+			const Mdst_charged &h_c3=pion3.mdstCharged();
+			const Mdst_vee2 &h_c4=Ks.mdstVee2();
+			const Gen_hepevt &h_pion1=get_hepevt(h_c1);
+			const Gen_hepevt &h_pion2=get_hepevt(h_c2);
+			const Gen_hepevt &h_pion3=get_hepevt(h_c3);
+			const Gen_hepevt &h_Ks=get_hepevt(h_c4);
+
 		    
-			if(h_Ks && h_pion1 && h_pion2&&h_pion3){
-			  if(h_Ks.mother() && h_pion1.mother() &&h_pion2.mother() && h_pion3.mother()){
-			    if( h_Ks.mother().get_ID()==h_pion1.mother().get_ID() && h_pion1.mother()==h_pion2.mother() && h_pion2.mother()==h_pion2.mother()){
-			      dPlus->relation().genHepevt(h_pion1.mother());
-			    }
-			  }
+			//			if(h_Ks && h_pion1 && h_pion2&&h_pion3){
+			//			  if(h_Ks.mother() && h_pion1.mother() &&h_pion2.mother() && h_pion3.mother() && h_Ks.mother().mother()){
+			//			    if( h_Ks.mother().mother().get_ID()==h_pion1.mother().get_ID() && h_pion1.mother()==h_pion2.mother().get_ID() && h_pion2.mother().get_ID()==h_pion2.mother().get_ID()){
+			if(h_pion1&& h_pion2&& h_pion3 && h_Ks&& commonParent(&h_pion1,&h_pion2,&h_pion3,&h_Ks,0)){
+			  dPlus->relation().genHepevt(h_pion1.mother());
 			}
 		      }
+		
 		    chargedDCandidates.push_back(dPlus);
 		  }
 	      }
@@ -4150,22 +4779,57 @@ else
 		  foundDDoubleStarDecay=0;
 		if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		  {
-		    if(m>1.0)
-		      mesonMassTree->Fill();
+		    if(m>1.7 && m < 2.0)
+		      {
+			if(m_mc)
+			  {
+			    const Mdst_charged &h_c1=pion1.mdstCharged();
+			    const Mdst_charged &h_c2=pion2.mdstCharged();
+			    const Mdst_charged &h_c3=kaon.mdstCharged();
+
+			    const Gen_hepevt &h_1=get_hepevt(h_c1);
+			    const Gen_hepevt &h_2=get_hepevt(h_c2);
+			    const Gen_hepevt &h_3=get_hepevt(h_c3);
+
+
+
+			    dIsSignal=0;
+			    if(h_1 && h_2 && h_3 && h_1.mother() && h_2.mother()  && h_3.mother() && h_1.mother().get_ID()==h_2.mother().get_ID() && h_1.mother().get_ID()==h_3.mother().get_ID()){
+			      dIsSignal=1;
+			    }
+			  }
+			mesonMassTree->Fill();
+		      }
 		  }
+
+		  
 		histoRecDSpect->Fill(m);
 		if(m>m_dPlusmass_max || m < m_dPlusmass_min ||isnan(m)) continue;
 		//		Particle* d0 =new Particle(p_d0,Ptype(k/.charge()<0 ? "D0" : "D0B"));
 		Particle* dPlus =new Particle(p_dPlus,Ptype(charge > 0 ? "D+": "D-"));
+		dPlus->userInfo(*(new ParticleInfoDecay()));
+		ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dPlus->userInfo());
+		pinf.decayChannel=dDecay;
+		pinf.type=dType;
+		pinf.pdgDiff=m-m_DPlus;
+
 		dPlus->relation().append(pion1);
 		dPlus->relation().append(pion2);
 		dPlus->relation().append(kaon);
 		if(m_mc)
 		  {
-		    const Gen_hepevt &h_pion1=pion1.genHepevt();
-		    const Gen_hepevt &h_pion2=pion2.genHepevt();
-		    const Gen_hepevt &h_kaon=kaon.genHepevt();
-		    if(h_pion1&&h_pion2 && h_kaon&& h_pion1.mother() && h_pion2.mother() && h_kaon.mother() && h_pion1.mother().get_ID()==h_pion2.mother().get_ID() && h_pion1.mother()==h_kaon.mother()){
+
+
+		    const Mdst_charged &h_c1=pion1.mdstCharged();
+		    const Mdst_charged &h_c2=pion2.mdstCharged();
+		    const Mdst_charged &h_c3=kaon.mdstCharged();
+
+		    const Gen_hepevt &h_pion1=get_hepevt(h_c1);
+		    const Gen_hepevt &h_pion2=get_hepevt(h_c2);
+		    const Gen_hepevt &h_kaon=get_hepevt(h_c3);
+
+
+		    if(h_pion1&&h_pion2 && h_kaon&& h_pion1.mother() && h_pion2.mother() && h_kaon.mother() && h_pion1.mother().get_ID()==h_pion2.mother().get_ID() && h_pion1.mother().get_ID()==h_kaon.mother().get_ID()){
 		      dPlus->relation().genHepevt(h_pion1.mother());
 		    }
 		  }
@@ -4199,22 +4863,56 @@ else
 		  foundDDoubleStarDecay=0;
 		if(SAVE_MESON_MASS_DISTRIBUTIONS)
 		  {
-		    if(m>1.0)
-		      mesonMassTree->Fill();
+		    if(m>1.7 && m < 2.0)
+		      {
+			if(m_mc)
+			  {
+
+			    const Mdst_charged &h_c1=kaon1.mdstCharged();
+			    const Mdst_charged &h_c2=kaon2.mdstCharged();
+			    const Mdst_charged &h_c3=pion.mdstCharged();
+
+			    const Gen_hepevt &h_1=get_hepevt(h_c1);
+			    const Gen_hepevt &h_2=get_hepevt(h_c2);
+			    const Gen_hepevt &h_3=get_hepevt(h_c3);
+
+
+			    dIsSignal=0;
+			    if(h_1 && h_2 && h_3 && h_1.mother() && h_2.mother()  && h_3.mother() && h_1.mother().get_ID()==h_2.mother().get_ID() && h_1.mother().get_ID()==h_3.mother().get_ID()){
+			      dIsSignal=1;
+			    }
+			  }
+			mesonMassTree->Fill();
+		      }	
 		  }
+		  	    
+		  
 		histoRecDSpect->Fill(m);
 		if(m>m_dPlusmass_max || m < m_dPlusmass_min ||isnan(m)) continue;
 		//		Particle* d0 =new Particle(p_d0,Ptype(k/.charge()<0 ? "D0" : "D0B"));
 		Particle* dPlus =new Particle(p_dPlus,Ptype(charge > 0 ? "D+": "D-"));
+		dPlus->userInfo(*(new ParticleInfoDecay()));
+		ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dPlus->userInfo());
+		pinf.decayChannel=dDecay;
+		pinf.type=dType;
+		pinf.pdgDiff=m-m_DPlus;
+
 		dPlus->relation().append(kaon1);
 		dPlus->relation().append(kaon2);
 		dPlus->relation().append(pion);
 		if(m_mc)
 		  {
-		    const Gen_hepevt &h_kaon1=kaon1.genHepevt();
-		    const Gen_hepevt &h_kaon2=kaon2.genHepevt();
-		    const Gen_hepevt &h_pion=pion.genHepevt();
-		    if(h_kaon1&&h_kaon2 && h_pion&& h_kaon1.mother() && h_kaon2.mother() && h_pion.mother() && h_kaon1.mother().get_ID()==h_kaon2.mother().get_ID() && h_kaon1.mother()==h_pion.mother()){
+
+		    const Mdst_charged &h_c1=kaon1.mdstCharged();
+		    const Mdst_charged &h_c2=kaon2.mdstCharged();
+		    const Mdst_charged &h_c3=pion.mdstCharged();
+
+		    const Gen_hepevt &h_kaon1=get_hepevt(h_c1);
+		    const Gen_hepevt &h_kaon2=get_hepevt(h_c2);
+		    const Gen_hepevt &h_pion=get_hepevt(h_c3);
+
+
+		    if(h_kaon1&&h_kaon2 && h_pion&& h_kaon1.mother() && h_kaon2.mother() && h_pion.mother() && h_kaon1.mother().get_ID()==h_kaon2.mother().get_ID() && h_kaon1.mother().get_ID()==h_pion.mother().get_ID()){
 		      dPlus->relation().genHepevt(h_kaon1.mother());
 		    }
 		  }
@@ -4222,9 +4920,6 @@ else
 	      }
 	  }
       }
-
-
-
   }
 
   void bToDDoubleStar::reconstructDStar()
@@ -4278,8 +4973,24 @@ else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.9 && m < 2.1)
+		  {
+		    if(m_mc)
+		      {
+			const Gen_hepevt &h_D=D.genHepevt();
+			const Mdst_pi0 &h_c1=pi0.mdstPi0();
+			const Gen_hepevt &h_pi0=get_hepevt(h_c1);
+
+			dIsSignal=0;
+			//		if(h_D && h_pi0 && h_D.mother() && h_pi0.mother() && h_D.mother().get_ID()==h_pi0.mother().get_ID()){
+			if(h_D && h_pi0 && commonParent(&h_D,&h_pi0,0,0,0))
+			  {
+			    dIsSignal=1;
+			  }
+		      } 
+		    mesonMassTree->Fill();
+		  }
+
 	      }
 	    histoRecDStarSpect->Fill(m);
 	    histoRecDStarSpectToDPi0->Fill(m);
@@ -4290,12 +5001,24 @@ else
 	    if(fabs(m-D.p().mag()-(m_DStarPlus-m_DPlus)) > max_massDifference) continue;
 	    //	    cout <<"done " <<endl;
 	    Particle* dStar =new Particle(p_dStar,Ptype(D.charge()>0 ? "D*+" : "D*-"));
+	    dStar->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dStar->userInfo());
+	    ParticleInfoDecay& d_pinf=dynamic_cast<ParticleInfoDecay&>(D.userInfo());
+	    pinf.childDecayChannel=d_pinf.decayChannel;
+	    pinf.childType=d_pinf.type;
+	    pinf.childPdgDiff=d_pinf.pdgDiff;
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_DStarPlus;
+
 	    dStar->relation().append(D);
 	    dStar->relation().append(pi0);
 	    if(m_mc)
 	      {
 		const Gen_hepevt &h_D=D.genHepevt();
-		const Gen_hepevt &h_pi0=pi0.genHepevt();
+		const Mdst_pi0 &h_c1=pi0.mdstPi0();
+		const Gen_hepevt &h_pi0=get_hepevt(h_c1);
+
 		if(h_D && h_pi0 && h_D.mother() && h_pi0.mother() && h_D.mother().get_ID()==h_pi0.mother().get_ID()){
 		  dStar->relation().genHepevt(h_D.mother());
 		}
@@ -4314,19 +5037,9 @@ else
 	    Particle& pion= *(*itP);
 
 	    bool doubleUse=false;
-	    //make sure that pion is not child of D
-	    for(int i =0;i<D.nChildren();i++)
-	      {
-		if(D.child(i).relation().isIdenticalWith(pion.relation()))
-		  {
-		    //		    cout <<"found double use 2 .." <<endl;
-		    doubleUse=true;
-		    break;
-		  }
-	      }
-	    if(doubleUse)
+	    //make sure that pion is not child of D-->what about Ks?
+	    if(checkDoubleUse(D,pion))
 	      continue;
-
 
 	    HepLorentzVector p_dStar=D.p()+pion.p();
 	    double m=p_dStar.mag();
@@ -4339,9 +5052,26 @@ else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.9 && m < 2.1)
+		  {
+		    if(m_mc)
+		      {
+			const Gen_hepevt &h_D=D.genHepevt();
+
+			const Mdst_charged &h_c1=pion.mdstCharged();
+			const Gen_hepevt &h_pion=get_hepevt(h_c1);
+
+			dIsSignal=0;
+			//			if(h_D && h_pion && h_D.mother() && h_pion.mother() && h_D.mother().get_ID()==h_pion.mother().get_ID()){
+			if(h_D && h_pion && commonParent(&h_D, &h_pion,0,0,0))
+			  {
+			    dIsSignal=1;
+			  }
+		      } 
+		    mesonMassTree->Fill();
+		  }
 	      }
+	      
 	    histoRecDStarSpect->Fill(m);
 	    histoRecDStarSpectToD0Pi->Fill(m);
 	    if(m>m_dStarPlusmass_max || m < m_dStarPlusmass_min ||isnan(m)) continue;
@@ -4352,12 +5082,23 @@ else
 	    if(fabs(m-D.p().mag()-(m_DStarPlus-m_D0)) > max_massDifference) continue;
 	    //	    cout <<"done" <<endl;
 	    Particle* dStar =new Particle(p_dStar,Ptype(pion.charge()>0 ? "D*+" : "D*-"));
+	    dStar->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dStar->userInfo());
+	    ParticleInfoDecay& d_pinf=dynamic_cast<ParticleInfoDecay&>(D.userInfo());
+	    pinf.childDecayChannel=d_pinf.decayChannel;
+	    pinf.childType=d_pinf.type;
+	    pinf.childPdgDiff=d_pinf.pdgDiff;
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+	    pinf.pdgDiff=m-m_DStarPlus;
 	    dStar->relation().append(D);
 	    dStar->relation().append(pion);
 	    if(m_mc)
 	      {
 		const Gen_hepevt &h_D=D.genHepevt();
-		const Gen_hepevt &h_pion=pion.genHepevt();
+		const Mdst_charged &h_c1=pion.mdstCharged();
+		const Gen_hepevt &h_pion=get_hepevt(h_c1);
+
 		if(h_D && h_pion && h_D.mother() && h_pion.mother() && h_D.mother().get_ID()==h_pion.mother().get_ID()){
 		  dStar->relation().genHepevt(h_D.mother());
 		}
@@ -4395,15 +5136,32 @@ else
 	    dMass=m;
 	    //	    cout <<"12 filling with " << m <<endl;
 	    dType=2;
-	    dDecay=3;
+	    dDecay=2;
 	    if(foundDPiPi || foundSinglePionDecay)
 	      foundDDoubleStarDecay=1;
 	    else
 	      foundDDoubleStarDecay=0;
 	    if(SAVE_MESON_MASS_DISTRIBUTIONS)
 	      {
-		if(m>1.0)
-		  mesonMassTree->Fill();
+		if(m>1.9 && m < 2.1)
+		  {
+		    if(m_mc)
+		      {
+			const Gen_hepevt &h_D=D.genHepevt();
+			const Mdst_pi0 &h_c1=pi0.mdstPi0();
+			const Gen_hepevt &h_pi0=get_hepevt(h_c1);
+
+			dIsSignal=0;
+			//			if(h_D && h_pion && h_D.mother() && h_pion.mother() && h_D.mother().get_ID()==h_pion.mother().get_ID()){
+			if(h_D && h_pi0 && commonParent(&h_D,&h_pi0,0,0,0))
+			  {
+			    dIsSignal=1;
+			  }
+		      } 
+		    mesonMassTree->Fill();
+		  }
+
+
 	      }
 	    histoRecDStarSpect->Fill(m);
 	    histoRecDStarSpectToD0Pi0->Fill(m);
@@ -4413,12 +5171,25 @@ else
 	    if(fabs(m-D.p().mag()-(m_DStar0-m_D0)) > max_massDifference) continue;
 	    //	    cout <<" done " <<endl;
 	    Particle* dStar =new Particle(p_dStar,Ptype("D*0"));
+	    dStar->userInfo(*(new ParticleInfoDecay()));
+	    ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>(dStar->userInfo());
+	    ParticleInfoDecay& d_pinf=dynamic_cast<ParticleInfoDecay&>(D.userInfo());
+	    pinf.childDecayChannel=d_pinf.decayChannel;
+	    pinf.childType=d_pinf.type;
+	    pinf.childPdgDiff=d_pinf.pdgDiff;
+	    pinf.pdgDiff=m-m_DStar0;
+	    pinf.decayChannel=dDecay;
+	    pinf.type=dType;
+
 	    dStar->relation().append(D);
 	    dStar->relation().append(pi0);
 	    if(m_mc)
 	      {
 		const Gen_hepevt &h_D=D.genHepevt();
-		const Gen_hepevt &h_pi0=pi0.genHepevt();
+
+		const Mdst_pi0 &h_c1=pi0.mdstPi0();
+		const Gen_hepevt &h_pi0=get_hepevt(h_c1);
+
 		if(h_D && h_pi0 && h_D.mother() && h_pi0.mother() && h_D.mother().get_ID()==h_pi0.mother().get_ID()){
 		  dStar->relation().genHepevt(h_D.mother());
 		}
@@ -4426,10 +5197,6 @@ else
 	    DStarCandidates.push_back(dStar);
 	  }
       }
-
-
-
-
 
   }
 
@@ -4666,8 +5433,8 @@ else
     //D1 lNu
 
     mcFactors[br_sig_D1]=0.0074;
- dataFactors[br_sig_D1]=0.0074;
- dataFactorError[br_sig_D1]=0.0011;
+    dataFactors[br_sig_D1]=0.0074;
+    dataFactorError[br_sig_D1]=0.0011;
     //D2 lNu
     mcFactors[br_sig_D2]=0.0036;
     dataFactors[br_sig_D2]=0.0047;
@@ -4706,7 +5473,481 @@ else
     return 1.0;
   }
 
+
+  void bToDDoubleStar::addBremsPhoton(Particle* p)
+  {
+    float minTheta=100;
+    float minPx=-1;
+    float minPy=-1;
+    float minPz=-1;     
+    float minE=-1;
+
+    Mdst_gamma_Manager& gamma_mgr=Mdst_gamma_Manager::get_manager();
+    for(std::vector<Mdst_gamma>::const_iterator i =gamma_mgr.begin();i!=gamma_mgr.end();i++)
+      {
+
+	if(passGammaQACuts(i))
+	  {
+	    const Mdst_gamma& gam=*i;
+	    double px=gam.px();
+	    double py=gam.py();
+	    double pz=gam.pz();
+	    double gammaE=sqrt(px*px+py*py+pz*pz);
+	    Hep3Vector pGamma(px,py,pz);
+	    float theta=  p->p3().angle(pGamma);
+	    float deg=180*(theta/TMath::Pi());
+	    if(deg < minTheta)
+	      {
+		minTheta=deg;
+		minPx=px;
+		minPy=py;
+		minPz=pz;
+		minE=gammaE;
+	      }
+	  }
+
+	
+      }
+    if(minTheta<5)
+      {
+	Momentum mom=p->momentum();
+	HepLorentzVector lvGamma(minPx,minPy,minPz,minE);
+	mom.momentum(p->p()+lvGamma);
+      }
+
+
+  }
+  bool bToDDoubleStar::passGammaQACuts(std::vector<Mdst_gamma>::const_iterator i)
+  {
+
+    Mdst_ecl_aux_Manager& eclaux_mgr = Mdst_ecl_aux_Manager::get_manager();
+    if(gammaIds.find(i->get_ID())!=gammaIds.end()){
+      return false;
+    }
+    Hep3Vector h(i->px(),i->py(),i->pz());
+    const Mdst_gamma& gam=*i;
+    int id=(int)gam.get_ID();
+    double px=gam.px();
+    double py=gam.py();
+    double pz=gam.pz();
+    //does not make sensee because if we only look in the central region for the
+    //computation of the thrust axis, that would change the axis, same for charged
+    ///there I take all for the thrust axis and the ones in the central region for
+    //the asymmetry
+    Mdst_ecl_aux &aux =eclaux_mgr(Panther_ID(gam.ecl().get_ID()));
+    if(gam.ecl().quality()!=0)
+      {
+	//	    cout <<"loosing photon due to  quality " <<endl;
+	return false;
+      }
+    //ratio of energy in 3x3 cluster compared to 5x5 cluster in emcal
+    double e9oe25 =aux.e9oe25();
+    double gammaE=sqrt(px*px+py*py+pz*pz);
+    Hep3Vector photVec(px, py,pz);
+    //barrel energy cut is the lowest
+    if(gammaE<cuts::minGammaEBarrel)
+      {
+	//	    cout <<" loosing photon in barrel due to energy cut " << gammaE<<endl;
+	return false;
+      }
+    float photTheta= photVec.theta();
+    //	cout <<"photTheta: "<< photTheta<<endl;
+    photTheta=180*(photTheta/TMath::Pi());
+    if(photTheta >cuts::barrelThetaMax) 
+      {
+	if(gammaE<cuts::minGammaEEndcapBkwd)
+	  {
+	    //	    cout <<" loosing photon in forwrad endcap due to energy cut " << gammaE<<endl;
+	    return false;
+	  }
+      }
+    if(photTheta< cuts::barrelThetaMin)
+      {
+	if(gammaE<cuts::minGammaEEndcapFwd)
+	  {
+	    //	    cout <<" loosing photon in backward endcap due to energy cut " << gammaE<<endl;
+	    return false;
+	  }
+      }
+
+    return true;
+  }
+
+
+  bool bToDDoubleStar::commonParent(const Gen_hepevt* h1, const Gen_hepevt* h2, const Gen_hepevt* h3, const Gen_hepevt* h4, int lund)
+  {
+    int id1,id2,id3,id4;
+    //      cout <<"getting first parent.." <<endl;
+    if(!h1->mother() || !h2->mother())
+      return false;
+    //only do this for non charged pion kaon, for those we only go up one level..
+    //    if(fabs(h1->idhep())==PY_PI || fabs(h1->idhep())==PY_K)
+    {
+      //	id1=h1->mother().get_ID();
+    }
+    //    else
+    {
+      id1=getParentDId(h1->mother());
+    }
+    //      cout <<"getting second parent " << endl;
+    //    if(fabs(h2->idhep())==PY_PI || fabs(h2->idhep())==PY_K)
+    {
+      //	id2=h2->mother().get_ID();
+    }
+    //    else
+    {
+      id2=getParentDId(h2->mother());
+    }
+    if(h3 && !h4)
+      {
+	//  cout <<"checking for h3 mother.. " << endl;
+	if(!h3->mother())
+	  return false;
+	//	  cout <<"trying third.." <<endl;
+	//	if(fabs(h3->idhep())==PY_PI || fabs(h3->idhep())==PY_K)
+	{
+	  //  id3=h3->mother().get_ID();
+	}
+	//	  else
+	{
+	  id3=getParentDId(h3->mother());
+	}
+	if(id1==id2 && id2==id3)
+	  return true;
+	else
+	  return false;
+	//	  cout <<"done .. " << endl;
+      }
+    if(h4)
+      {
+	if(!h3->mother())
+	  return false;
+
+	if(!h4->mother())
+	  return false;
+
+	//	  cout <<"getting fourth " << endl;
+	//	if(fabs(h3->idhep())==PY_PI || fabs(h3->idhep())==PY_K)
+	{
+	  //	    id3=h3->mother().get_ID();
+	}
+	//	else
+	{
+	  id3=getParentDId(h3->mother());
+	}
+	//	if(fabs(h4->idhep())==PY_PI || fabs(h4->idhep())==PY_K)
+	{
+	  //	    id4=h4->mother().get_ID();
+	}
+	//	else
+	{
+	  id4=getParentDId(h4->mother());
+	}
+	if(id1==id2 && id2==id3 && id2==id4)
+	  return true;
+	else
+	  return false;
+      }
+    if(id1==id2)
+      return true;
+    else
+      return false;
+  }
+
+
+  int bToDDoubleStar::getParentDId(const Gen_hepevt& h)
+  {
+    //    cout <<" in parent id " << endl;
+    int id=fabs(h.idhep());
+    //    cout <<" got id " << id <<endl;
+    if(id==PY_D|| id==PY_D0 || id==PY_DStar || id==PY_DStar0)
+      {
+	//	cout <<"returning id " << endl;
+	//	cout <<"ID" <<h.get_ID()<<endl;
+	return h.get_ID();
+      }
+    //    cout <<" trying mother .. " << endl;
+    if(h.mother())
+      {
+	//	cout <<"found " << endl;
+	return getParentDId(h.mother());
+      }
+    return -1;
+  }
+
+
+  bool bToDDoubleStar::foundUnwantedDDoubleStar()
+  {
+    Gen_hepevt_Manager& gen_hep_Mgr=Gen_hepevt_Manager::get_manager();
+
+    for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
+      {
+	if(gen_it->get_ID()==PY_DStar_2S)
+	  return true;
+	if(gen_it->get_ID()==100421)
+	  return true;
+	if(gen_it->get_ID()==100413)
+	  return true;
+	if(gen_it->get_ID()==100411)
+	  return true;
+	if(gen_it->get_ID()==10431)
+	  return true;
+	
+      }
+    return false;
+  }
+
+  bool  bToDDoubleStar::checkDoubleUse(Particle& D, Particle& pion)
+  {
+
+    for(int i =0;i<D.nChildren();i++)
+      {
+	int lund=fabs(D.child(i).pType().lund());
+	if(lund==PY_PI || lund==PY_Pi0 || lund==PY_K||lund==PY_GAMMA)
+	  {
+	    if(D.child(i).relation().isIdenticalWith(pion.relation()))
+	      return true;
+	  }
+	else//something with daughters, so either D or KS
+	  {
+	    if(checkDoubleUse(D.child(i),pion))
+	      return true;
+	  }
+
+      }
+    return false;
   
+
+    ////only for one level
+    ///    for(int i =0;i<D.nChildren();i++)
+    ///      {
+    ///	//gotta check the children of the ks as well
+    ///	if(D.child(i).pType().lund()==PY_KS0)
+    ///	  {
+    ///	    for(int j =0;j<D.child(i).nChildren();j++)
+    ///	      {
+    ///		if(D.child(i).child(j).relation().isIdenticalWith(pion.relation()))
+    ///		  {
+    ///		    return true;
+    ///		  }
+    ///	      }
+    ///	    
+    ///	  }
+    ///	if(D.child(i).relation().isIdenticalWith(pion.relation()))
+    ///	  {
+    ///	    //		    cout <<"found double use 2 .." <<endl;
+    ///	    return true;
+    ///
+    ///	  }
+    ///      }
+    ///    return false;
+  }
+
+
+  void  bToDDoubleStar::printUse()
+  {
+
+    cout <<"we have " << chargedPiCandidates.size() << "pi cand " << chargedKCandidates.size() <<" k cand ";
+    cout <<pi0Candidates.size() <<" pi0 cand " << KsCandidates.size() <<" Ks Can" <<endl;
+
+    for(vector<Particle*>::iterator itD=D0Candidates.begin();itD!=D0Candidates.end();itD++)
+      {
+	ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>((*itD)->userInfo());
+	cout <<"D0 decay : " << pinf.decayChannel << " mass diff: "<< pinf.pdgDiff <<endl;
+	printChildrenIds(*(*itD));
+      }
+    for(vector<Particle*>::iterator itD=chargedDCandidates.begin();itD!=chargedDCandidates.end();itD++)
+      {
+	ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>((*itD)->userInfo());
+	cout <<"D+ decay : " << pinf.decayChannel << " mass diff: "<< pinf.pdgDiff <<endl;
+	printChildrenIds(*(*itD));
+      }
+    for(vector<Particle*>::iterator itD=DStarCandidates.begin();itD!=DStarCandidates.end();itD++)
+      {
+	ParticleInfoDecay& pinf=dynamic_cast<ParticleInfoDecay&>((*itD)->userInfo());
+	cout <<"DStar decay : " << pinf.decayChannel << " child: " << pinf.childType<<" child decay: " << pinf.childDecayChannel<<" child pdg diff: " << pinf.childPdgDiff<<endl;
+	printChildrenIds(*(*itD));
+      }
+
+
+  }
+
+  void bToDDoubleStar::printChildrenIds(Particle& p)
+  {
+
+    for(int i =0;i<p.nChildren();i++)
+      {
+	int lund=fabs(p.child(i).pType().lund());
+	if(lund==PY_PI || lund==PY_Pi0 || lund==PY_K||lund==PY_GAMMA)
+	  {
+	    cout <<" found " <<p.child(i).pType().name() <<" id: ";
+	    if(p.child(i).mdstCharged())
+	      {
+		cout <<p.child(i).mdstCharged().get_ID() <<" momentum: " << p.child(i).p().rho();
+
+	      }
+	    if(p.child(i).mdstPi0())
+	      {
+		cout <<p.child(i).mdstPi0().get_ID() <<" momentum: " << p.child(i).p().rho();
+	      }
+	    if(p.child(i).mdstGamma())
+	      {
+		cout << p.mdstGamma().get_ID() <<" momentum: " << p.child(i).p().rho();
+	      }
+	    cout <<endl;
+	  }
+	else//something with daughters, so either D or KS
+	  {
+	    printChildrenIds(p.child(i));
+	  }
+
+      }
+    return;
+  
+
+  }
+
+  ///same as the gammaQA function
+  bool bToDDoubleStar::checkGammaEnergy(float px, float py, float pz, float gammaE)
+  {
+
+    Hep3Vector photVec(px, py,pz);
+    //barrel energy cut is the lowest
+    if(gammaE<cuts::minGammaEBarrel)
+      {
+	//	    cout <<" loosing photon in barrel due to energy cut " << gammaE<<endl;
+	return false;
+      }
+    float photTheta= photVec.theta();
+    //	cout <<"photTheta: "<< photTheta<<endl;
+    photTheta=180*(photTheta/TMath::Pi());
+    if(photTheta >cuts::barrelThetaMax) 
+      {
+	if(gammaE<cuts::minGammaEEndcapBkwd)
+	  {
+	    //	    cout <<" loosing photon in forwrad endcap due to energy cut " << gammaE<<endl;
+	    return false;
+	  }
+      }
+    if(photTheta< cuts::barrelThetaMin)
+      {
+	if(gammaE<cuts::minGammaEEndcapFwd)
+	  {
+	    //	    cout <<" loosing photon in backward endcap due to energy cut " << gammaE<<endl;
+	    return false;
+	  }
+      }
+    return true;
+
+  }
+
+  bool compPi0s(Particle* p1, Particle* p2)
+  {
+    if(!(p1->mdstPi0() && p2->mdstPi0()))
+      {
+	cout  <<endl <<" trying to compare non pi0!!!!!!" <<endl<<endl;
+	return false;
+      }
+
+    ParticleInfoMass& pinf1=dynamic_cast<ParticleInfoMass&>(p1->userInfo());
+    ParticleInfoMass& pinf2=dynamic_cast<ParticleInfoMass&>(p2->userInfo());
+    float asym1=(pinf1.gammaE1-pinf1.gammaE2)/(pinf1.gammaE1+pinf1.gammaE2);
+    float asym2=(pinf2.gammaE1-pinf2.gammaE2)/(pinf2.gammaE1+pinf2.gammaE2);
+
+float gammaE1_1=pinf1.gammaE1;
+float gammaE2_1=pinf1.gammaE2;
+float gammaE1_2=pinf2.gammaE1;
+float gammaE2_2=pinf2.gammaE2;
+
+//    return (asym1<asym2);
+
+float tmp;
+//_1 should be the larger one
+if(gammaE1_1< gammaE2_1)
+  {
+    tmp=gammaE2_1;
+    gammaE2_1=gammaE1_1;
+    gammaE1_1=tmp;
+  }
+if(gammaE1_2< gammaE2_2)
+  {
+    tmp=gammaE2_2;
+    gammaE2_2=gammaE1_2;
+    gammaE1_2=tmp;
+  }
+
+
+//use Robins criterium. We flipped the '>' sign because the sorting is done ascending, but we want descending in energy
+if(gammaE1_1!=gammaE1_2)
+  return gammaE1_1 > gammaE1_2;
+ else
+   return gammaE2_1> gammaE2_2;
+
+
+
+}
+
+
+void bToDDoubleStar::cleanPi0s()
+{
+  //sort pi0s that passed our cuts by energy asymmetry, then go from firt to last and remove stuff that overlaps
+  //	if(abs((g1Energy-g2Energy)/(g1Energy+g2Energy))
+  sort(pi0Candidates.begin(),pi0Candidates.end(),compPi0s);
+  bool deletedOne=false;
+  do
+  {
+    //new round
+    deletedOne=false;
+    for(vector<Particle*>::iterator itp=pi0Candidates.begin();itp!=pi0Candidates.end();itp++)
+      {
+
+	if((*itp)->nChildren()==2 && (*itp)->child(0).mdstGamma() && (*itp)->child(1).mdstGamma())
+	  {
+	   int id1=(*itp)->child(0).mdstGamma().get_ID();
+	   int id2=(*itp)->child(1).mdstGamma().get_ID();
+	    for(vector<Particle*>::iterator itp2=itp+1;itp2!=pi0Candidates.end();itp2++)
+	      {
+		if((*itp2)->nChildren()==2 && (*itp2)->child(0).mdstGamma() && (*itp2)->child(1).mdstGamma())
+		  {
+		    int id1_2=(*itp2)->child(0).mdstGamma().get_ID();
+		    int id2_2=(*itp2)->child(1).mdstGamma().get_ID();
+		    
+		    if(id1==id1_2 || id1==id2_2 || id2== id1_2 || id2==id2_2)
+		      {
+			deletedOne=true;
+			//	cout <<" found overlap... erase.." <<endl;
+			delete *itp2;
+			pi0Candidates.erase(itp2);
+		    //gotta get out of the loop if we deleted something
+			break;
+		      }
+		    
+		  }
+		else
+		  {
+		    cout <<"some problem with getting the gammas of the second pi0s.." <<endl;
+		  }
+
+	      }
+	  }
+	else
+	  {
+	    cout <<"some problem with getting the gammas of the pi0s.." <<endl;
+	  }
+	
+	if(deletedOne)
+	  break;
+
+
+      }
+
+  }
+  while(deletedOne);
+
+
+
+}
+
 #if defined(BELLE_NAMESPACE)
 } // namespace Belle
 #endif

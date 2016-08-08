@@ -72,17 +72,32 @@ public:
     addFieldF("CrossSectionLumiCorrection");  
 
 
+    addFieldF("pi1Mom_mc");
+    addFieldF("pi2Mom_mc");
+    addFieldF("pi1Theta_mc");
+    addFieldF("pi2Theta_mc");
+    addFieldF("pi1Phi_mc");
+    addFieldF("pi2Phi_mc");
+
+    addFieldI("pi1Found");
+    addFieldI("pi2Found");
+
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
     addFieldI("bestBCharge");
-    addFieldI("systemCharge");
+
+
+
 
     addFieldI("sig_numPions");
     addFieldI("sig_numKaons");
     addFieldI("sig_numPi0");
     addFieldI("sig_numLeptons");
     addFieldI("sig_numBaryons");
+    addFieldI("sig_numD");
+    addFieldI("sig_numDStar");
+
 
 
     addFieldI("sig_DLNu");
@@ -92,6 +107,17 @@ public:
     addFieldI("sig_DStarLNu");
     addFieldI("sig_DStarPiLNu");
     addFieldI("sig_DStarPiPiLNu");
+
+
+    addFieldI("sig_ResDLNu");
+    addFieldI("sig_ResDPiLNu");
+    addFieldI("sig_ResDPiPiLNu");
+
+    addFieldI("sig_ResDStarLNu");
+    addFieldI("sig_ResDStarPiLNu");
+    addFieldI("sig_ResDStarPiPiLNu");
+
+
 
     addFieldF("tagOverlapFractionCharged");
     addFieldF("tagOverlapFractionPi0");
@@ -115,7 +141,9 @@ public:
     addFieldI("D_DaughterPID");
     addFieldI("recDDoubleStar");
     addFieldI("tagId");
-
+    addArrayI("leptonCharge");
+    addArrayI("dCharge");
+    addArrayI("systemCharge");
     addArrayI("recDType");
     addArrayI("numRecPions");
     //best mNu of all D candidates in the event
@@ -125,7 +153,10 @@ public:
 
     //    addArrayF("tagDeltaE");
     //    addArrayF("tagMass");
+    addArrayI("dType");
+    addArrayI("dDecay");
 
+    addArrayF("U");
     addArrayF("mNu2");
     addArrayF("mB");
     addArrayF("mXl");
@@ -135,14 +166,24 @@ public:
     addArrayF("pi1Mom");
     addArrayF("pi2Mom");
 
+
     addArrayF("leptonTheta");
     addArrayF("pi1Theta");
     addArrayF("pi2Theta");
+
 
     addArrayF("leptonPhi");
     addArrayF("pi1Phi");
     addArrayF("pi2Phi");
 
+
+
+
+    addArrayF("DDiff");
+    addArrayF("DStarDiff");
+
+    addArrayF("hypDMass1");
+    addArrayF("hypDMass2");
 
   }
 
@@ -169,18 +210,33 @@ public:
       //      cout <<"saving d decay corr : "<< data->D_DecayCorr <<" b decay corr: "<< data->B_DecayCorr<<endl;
       (*(float*)treeData[index++])=data->pidCorrection;
       (*(float*)treeData[index++])=data->CrossSectionLumiCorrection;
+
+      (*(float*)treeData[index++])=data->pi1Mom_mc;
+      (*(float*)treeData[index++])=data->pi2Mom_mc;
+      (*(float*)treeData[index++])=data->pi1Theta_mc;
+      (*(float*)treeData[index++])=data->pi2Theta_mc;
+      (*(float*)treeData[index++])=data->pi1Phi_mc;
+      (*(float*)treeData[index++])=data->pi2Phi_mc;
+
+
       //      cout <<"saving corrections: tag: " << data->tagCorr <<", D: "<< data->D_DecayCorr <<" B: " << data->B_DecayCorr<<", pid: "<< data->pidCorrection <<", cross section and lumi: "<< data->CrossSectionLumiCorrection<<endl;
+      (*(int*)treeData[index++])=data->pi1Found;
+      (*(int*)treeData[index++])=data->pi2Found;
+
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
       (*(int*)treeData[index++])=data->foundAnyDDoubleStar;
       (*(int*)treeData[index++])=data->bestBCharge;
-      (*(int*)treeData[index++])=data->systemCharge;
       //      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
+
+
       (*(int*)treeData[index++])=data->sig_numPions;
       (*(int*)treeData[index++])=data->sig_numKaons;
       (*(int*)treeData[index++])=data->sig_numPi0;
       (*(int*)treeData[index++])=data->sig_numLeptons;
       (*(int*)treeData[index++])=data->sig_numBaryons;
+      (*(int*)treeData[index++])=data->sig_numD;
+      (*(int*)treeData[index++])=data->sig_numDStar;
 
       (*(int*)treeData[index++])=data->sigDLNu;
       //      cout <<"dlnu : "<<data->sigDLNu <<endl;
@@ -196,6 +252,16 @@ public:
       (*(int*)treeData[index++])=data->sigDStarLNu;
       (*(int*)treeData[index++])=data->sigDStarPiLNu;
       (*(int*)treeData[index++])=data->sigDStarPiPiLNu;
+
+
+      (*(int*)treeData[index++])=data->sigResDLNu;
+      (*(int*)treeData[index++])=data->sigResDPiLNu;
+      (*(int*)treeData[index++])=data->sigResDPiPiLNu;
+
+      (*(int*)treeData[index++])=data->sigResDStarLNu;
+      (*(int*)treeData[index++])=data->sigResDStarPiLNu;
+      (*(int*)treeData[index++])=data->sigResDStarPiPiLNu;
+
 
       (*(float*)treeData[index++])=data->tagOverlapFractionCharged;
       (*(float*)treeData[index++])=data->tagOverlapFractionPi0;
@@ -223,9 +289,36 @@ public:
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
 	{
+	  ((int*)treeData[index])[i]=data->leptonCharge[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((int*)treeData[index])[i]=data->dCharge[i];
+	}
+      ++index;
+
+
+
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((int*)treeData[index])[i]=data->systemCharge[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
 	  ((int*)treeData[index])[i]=data->recDType[i];
 	}
       ++index;
+
 
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
@@ -241,6 +334,20 @@ public:
 	}
       ++index;
 
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((int*)treeData[index])[i]=data->dType[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((int*)treeData[index])[i]=data->dDecay[i];
+	}
+      ++index;
+
 
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
@@ -248,6 +355,14 @@ public:
 	  ((float*)treeData[index])[i]=data->mNu2[i];
 	}
       ++index;
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->U[i];
+	}
+      ++index;
+
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
 	{
@@ -273,18 +388,22 @@ public:
 	  ((float*)treeData[index])[i]=data->leptonMom[i];
 	}
       ++index;
+
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
 	{
 	  ((float*)treeData[index])[i]=data->pi1Mom[i];
 	}
       ++index;
+
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
 	{
 	  ((float*)treeData[index])[i]=data->pi2Mom[i];
 	}
       ++index;
+
+
 
 
       (*(int*)treeData[index++])=data->size;
@@ -324,6 +443,36 @@ public:
       for(int i=0;i<data->size;i++)
 	{
 	  ((float*)treeData[index])[i]=data->pi2Phi[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->DDiff[i];
+	}
+      ++index;
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->DStarDiff[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->hypDMass1[i];
+	}
+      ++index;
+
+
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->hypDMass2[i];
 	}
       ++index;
 

@@ -56,7 +56,7 @@ public:
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
   bool findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numNu,int* br_sigs);
-  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S);
+  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S, bool trackRhoDecay=true);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
   void saveTree();
@@ -118,6 +118,8 @@ public:
   Ptype cKNeg;
  protected:
 
+  bool checkDoubleUse(Particle& D, Particle& pion);
+
   PIDCorrections pidCorrections;
 
   int evtNr;
@@ -128,11 +130,21 @@ public:
   bool sig_FoundD;
   int sig_numPions;
   int sig_numKaons;
+  int sig_numRhos;
   int sig_numLeptons;
   int sig_numPi0;
   int sig_numBaryons;
   int sig_numD;
   int sig_numDStar;
+
+
+  vector<float> mc_piMom;
+  vector<float> mc_piPhi;
+  vector<float> mc_piTheta;
+  vector<bool> mc_piFound;
+
+  set<int> foundChargedDecIds;
+
 
 
   ///for corrections
@@ -187,6 +199,15 @@ static const  int br_sig_D0Star0=11;
   int sigDStarLNu;
 
 
+  int sigResDPiLNu;
+  int sigResDPiPiLNu;
+  int sigResDLNu;
+
+  int sigResDStarPiLNu;
+  int sigResDStarPiPiLNu;
+  int sigResDStarLNu;
+
+
   bool sig_dStar_2S;
   bool sig_d_2S;
 
@@ -204,6 +225,11 @@ static const  int br_sig_D0Star0=11;
     vector<Particle*> DStarCandidates;
     bool m_mc;
 
+    bool foundUnwantedDDoubleStar();
+    bool commonParent(const Gen_hepevt* h1, const Gen_hepevt* h2, const Gen_hepevt* h3, const Gen_hepevt* h4, int lund);
+    int getParentDId(const Gen_hepevt& h);
+    void addBremsPhoton(Particle* p);
+    bool passGammaQACuts(std::vector<Mdst_gamma>::const_iterator i);
     void reconstructD0();
     void reconstructChargedD();
     void reconstructDStar();
@@ -220,6 +246,7 @@ private:
     float dMass;
     int dType;
     int dDecay;
+    int dIsSignal;
     int foundDDoubleStarDecay;
     int allDTracksFound;
     float mcFactors[12];
@@ -243,7 +270,12 @@ private:
   float getDecayDistD();
   float getDecayDistPN();
   bool checkForDPiPi(int& bMesonId, bool& foundSinglePionDecay,bool print=false);
+  void printUse();
+  void cleanPi0s();
+  //  bool compPi0s(Particle* p1, Particle* p2);
+  void printChildrenIds(Particle& p);
   bool checkDDoubleStarDecay(bool& foundSinglePionDecay,const  Gen_hepevt &m_mother, int daughterId,int& numGDaughters, bool& foundSameChargePions, bool& foundPiPlus, bool& foundPiMinus,  bool& foundD, bool& foundDStar,bool print=false);
+  bool checkGammaEnergy(float px, float py, float pz, float gammaE);
 
   genhep_vec *getDaughters(const Gen_hepevt &mother);
   Hep3Vector getVertex(bool firstHemi);

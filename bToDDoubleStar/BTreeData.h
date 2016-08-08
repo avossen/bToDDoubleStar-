@@ -14,7 +14,7 @@ class BTreeData
   float logProb;
 
   int bestBCharge;
-  int systemCharge;
+
 
   float deltaETag;
   float mBTag;
@@ -45,8 +45,19 @@ class BTreeData
   int sig_numD;
   int sig_numDStar;
 
+
   int sig_dStar_2S;
   int sig_d_2S;
+
+  int sigResDLNu;
+  int sigResDPiLNu;
+  int sigResDPiPiLNu;
+
+  int sigResDStarLNu;
+  int sigResDStarPiLNu;
+  int sigResDStarPiPiLNu;
+
+
 
   int sigDLNu;
   int sigDPiLNu;
@@ -74,13 +85,25 @@ class BTreeData
   int foundDDoubleStarInMC;
   int daughterDPID;
 
+
+  float U[1000];
   float mNu2[1000];
   float mB[1000];
   float mXl[1000];
   float mDnPi[1000];
+  int systemCharge[1000];
+  int leptonCharge[1000];
+  int dCharge[1000];
   int recDType[1000];
   int numRecPions[1000];
   int bestD[1000];
+  int dDecay[1000];
+  int dType[1000];
+
+
+  int pi1Rec[1000];
+  int pi2Rec[1000];
+
   float leptonMom[1000];
   float leptonTheta[1000];
   float leptonPhi[1000];
@@ -91,11 +114,45 @@ class BTreeData
   float pi2Theta[1000];
   float pi2Phi[1000];
 
+
+  //there is only one real mc possibility
+  float pi1Mom_mc;
+  float pi1Theta_mc;
+  float pi1Phi_mc;
+  float pi2Mom_mc;
+  float pi2Theta_mc;
+  float pi2Phi_mc;
+
+  float pi1Found;
+  float pi2Found;
+
+  float DDiff[1000];
+  float DStarDiff[1000];
+
+  //masses of the system with only one pion combined (cut in case it is too close to D*)
+  float hypDMass1[1000];
+  float hypDMass2[1000];
+
+
   int size;
 
   //call at the beginning of the event to make sure that we don't have any stale data in the structure
   void initData()
   {
+    pi1Found=-1;
+    pi2Found=-1;
+
+    pi1Phi_mc=-1;
+    pi2Phi_mc=-1;
+
+
+    pi1Theta_mc=-1;
+    pi2Theta_mc=-1;
+
+
+    pi1Mom_mc=-1;
+    pi2Mom_mc=-1;
+
 
     foundDPiPi=-1;
     recBToDlNuPiPi=-1;
@@ -106,7 +163,7 @@ class BTreeData
    logProb=-1;
 
   bestBCharge=-1;
-  systemCharge=-1;
+  //systemCharge=-1;
 
    deltaETag=-1;
    mBTag=-1;
@@ -147,6 +204,16 @@ class BTreeData
    sigDStarPiLNu=-1;
    sigDStarPiPiLNu=-1;
 
+
+   sigResDLNu=-1;
+   sigResDPiLNu=-1;
+   sigResDPiPiLNu=-1;
+
+   sigResDStarLNu=-1;
+   sigResDStarPiLNu=-1;
+   sigResDStarPiPiLNu=-1;
+
+
    leptonP=-1;
    foundLepton=-1;
    piPlusP=-1;
@@ -170,3 +237,4 @@ class BTreeData
 };
 
 #endif
+
