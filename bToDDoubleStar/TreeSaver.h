@@ -161,8 +161,8 @@ public:
     addArrayI("dType");
     addArrayI("dDecay");
 
-    addArrayF("U");
     addArrayF("mNu2");
+    addArrayF("U");
     addArrayF("mB");
     addArrayF("mXl");
     addArrayF("mDnPi");
