@@ -72,6 +72,7 @@ public:
     addFieldF("CrossSectionLumiCorrection");  
 
 
+
     addFieldF("pi1Mom_mc");
     addFieldF("pi2Mom_mc");
     addFieldF("pi1Theta_mc");
@@ -81,12 +82,12 @@ public:
 
     addFieldI("pi1Found");
     addFieldI("pi2Found");
-
+    addFieldI("overlapEvent");
     addFieldI("found_2SD");
     addFieldI("found_2SD_Star");
     addFieldI("foundAnyDDoubleStar");
     addFieldI("bestBCharge");
-
+    addFieldI("mcBCharge");
 
 
 
@@ -128,7 +129,8 @@ public:
     addFieldI("recDecaySignature");
 
 
-
+    addFieldI("mcDCharge");
+    addFieldI("mcIsDStar");
     addFieldI("foundDPiPi");
     addFieldI("recBToDlNuPiPi");
     addFieldI("recBToDlNuPi");
@@ -141,11 +143,14 @@ public:
     addFieldI("D_DaughterPID");
     addFieldI("recDDoubleStar");
     addFieldI("tagId");
+
+
     addArrayI("leptonCharge");
     addArrayI("dCharge");
     addArrayI("systemCharge");
     addArrayI("recDType");
     addArrayI("numRecPions");
+
     //best mNu of all D candidates in the event
     addArrayI("bestD");
     //    addFieldI("numPi0");
@@ -211,6 +216,7 @@ public:
       (*(float*)treeData[index++])=data->pidCorrection;
       (*(float*)treeData[index++])=data->CrossSectionLumiCorrection;
 
+
       (*(float*)treeData[index++])=data->pi1Mom_mc;
       (*(float*)treeData[index++])=data->pi2Mom_mc;
       (*(float*)treeData[index++])=data->pi1Theta_mc;
@@ -222,11 +228,14 @@ public:
       //      cout <<"saving corrections: tag: " << data->tagCorr <<", D: "<< data->D_DecayCorr <<" B: " << data->B_DecayCorr<<", pid: "<< data->pidCorrection <<", cross section and lumi: "<< data->CrossSectionLumiCorrection<<endl;
       (*(int*)treeData[index++])=data->pi1Found;
       (*(int*)treeData[index++])=data->pi2Found;
+      (*(int*)treeData[index++])=data->overlapEvent;
+
 
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
       (*(int*)treeData[index++])=data->foundAnyDDoubleStar;
       (*(int*)treeData[index++])=data->bestBCharge;
+      (*(int*)treeData[index++])=data->mcBCharge;
       //      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
 
 
@@ -271,6 +280,8 @@ public:
       (*(int*)treeData[index++])=data->sig_d_2S;
       (*(int*)treeData[index++])=data->mcDecaySignature;
       (*(int*)treeData[index++])=data->recDecaySignature;
+      (*(int*)treeData[index++])=data->mcDCharge;
+      (*(int*)treeData[index++])=data->mcIsDStar;
 
       (*(int*)treeData[index++])=data->foundDPiPi;
       (*(int*)treeData[index++])=data->recBToDlNuPiPi;
@@ -300,8 +311,6 @@ public:
 	  ((int*)treeData[index])[i]=data->dCharge[i];
 	}
       ++index;
-
-
 
 
       (*(int*)treeData[index++])=data->size;

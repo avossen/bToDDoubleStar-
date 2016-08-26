@@ -388,6 +388,7 @@ namespace Belle {
     sig_numRhos=0;
     sig_numPions=0;
     sig_numD=0;
+    sig_DCharge=0;
     sig_numDStar=0;
     sig_numPi0=0;
     sig_numBaryons=0;
@@ -701,6 +702,17 @@ namespace Belle {
     treeData.sig_numD=sig_numD;
     treeData.sig_numDStar=sig_numDStar;
     treeData.sig_numKaons=sig_numKaons;
+
+    //otherwise we will already have set in when we looked for the non-resonant decays
+    if(sig_FoundDDoubleStar)
+      {
+	treeData.mcDCharge=sig_DCharge;
+	treeData.mcIsDStar=0;
+	if(sig_numDStar==1 && sig_numD==0)
+	  {
+	    treeData.mcIsDStar=1;
+	  }
+      }
     treeData.sig_numPi0=sig_numPi0;
     treeData.sig_numLeptons=sig_numLeptons;
     treeData.sig_numBaryons=sig_numBaryons;
@@ -1521,6 +1533,7 @@ namespace Belle {
 	    treeData.leptonCharge[treeData.size]=leptonCharge;
 	    treeData.dCharge[treeData.size]=dCharge;
 
+
 	    if(recDecaySignature)
 	      {
 		foundRecDecay=true;
@@ -1950,31 +1963,43 @@ namespace Belle {
       }
   
     /////--->Don't select best D based on mNu2 (bias), instead using best Ds (separately for n12, D and DStar
-
+    bool singlePionEvent=false;
+    bool twoPionEvent=false;
     //priority to DStar
     if(bestDStarIndex1>=0 && bestDStarIndex1<1000)
       {
 	treeData.bestD[bestDStarIndex1]=1;
+	singlePionEvent=true;
       }
     else
       {
 	if(bestDIndex1>=0 && bestDIndex1<1000)
 	  {
 	    treeData.bestD[bestDIndex1]=1;
+	    singlePionEvent=true;
 	  }
       }
     //do n=1 and n=2 separately (we can tell by the numPions field)
     if(bestDStarIndex2>=0 && bestDStarIndex2<1000)
       {
 	treeData.bestD[bestDStarIndex2]=1;
+	twoPionEvent=true;
       }
     else
       {
 	if(bestDIndex2>=0 && bestDIndex2<1000)
 	  {
 	    treeData.bestD[bestDIndex2]=1;
+	    twoPionEvent=true;
 	  }
       }
+
+    if(singlePionEvent && twoPionEvent)
+      treeData.overlapEvent=true;
+    else
+      treeData.overlapEvent=false;
+
+
 
     //    cout <<"done combining.." <<endl;
     //    if(bestDIndex>=0 && bestDIndex < 1000)
@@ -2927,6 +2952,11 @@ namespace Belle {
 
 	if(geantID==PY_B0 || geantID==PY_B)
 	  {
+	    if(geantID==PY_B0)
+	      treeData.mcBCharge=0;
+	    else
+	      treeData.mcBCharge=1;
+
 	    bool tempFoundDDoubleStar=false;
 	    int tempNumLeptons=0;
 	    int tempNumPions=0;
@@ -2935,6 +2965,7 @@ namespace Belle {
 	    int tempNumPi0=0;
 	    int tempNumBaryons=0;
 	    int tempNumD=0;
+	    int tempDCharge=0;
 	    int tempNumDStar=0;
 	    bool tempNumDStar2S=false;
 	    bool tempNumDStarD2S=false;
@@ -3022,6 +3053,7 @@ namespace Belle {
 	    tempNumPi0=0;
 	    tempNumBaryons=0;
 	    tempNumD=0;
+	    tempDCharge=0;
 	    tempNumDStar=0;
 	    tempNumDStar2S=false;
 	    tempNumDStarD2S=false;
@@ -3032,7 +3064,7 @@ namespace Belle {
 	    mc_piFound.clear();
 
 	    //and the other call for the 'regular' decay signature search where we trace the D decays
-	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumRhos,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S);
+	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumRhos,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S, tempDCharge);
 
 	    if(evtNr==74850 &&  runNr== 879)
 	      {
@@ -3044,6 +3076,22 @@ namespace Belle {
 	      {
 		if(tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0)// && tempNumD==0)
 		  {
+
+		    ////////
+
+
+		    ///////
+
+		    if(tempNumPions==1 || tempNumPions==2)
+		      {
+			if(tempNumDStar==1)
+			  treeData.mcIsDStar=1;
+			else
+			  treeData.mcIsDStar=0;
+
+			treeData.mcDCharge=tempDCharge;
+		      }
+
 		    if(tempNumPions==1)
 		      {
 			treeData.pi1Mom_mc=mc_piMom[0];
@@ -3062,7 +3110,6 @@ namespace Belle {
 			treeData.pi2Mom_mc=mc_piMom[1];
 			treeData.pi2Theta_mc=mc_piTheta[1];
 			treeData.pi2Phi_mc=mc_piPhi[1];
-
 			treeData.pi2Found=mc_piFound[1];
 		      }
 
@@ -3126,8 +3173,6 @@ namespace Belle {
 			  sigResDPiLNu++;
 			if(tempNumPions==2)
 			  sigResDPiPiLNu++;
-		
-
 		      }
 		  }
 
@@ -3167,7 +3212,7 @@ namespace Belle {
 	    //haven't found it yet... (note that this uses different variables. So not the tmp version from above which is only there to check if a certain decay mode is found
 	    //the below is only for the case that there is a double star, to check for sig_numpi etc...
 	    if(!sig_FoundDDoubleStar)
-	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numRhos,sig_numPi0,sig_numBaryons,sig_numD, sig_numDStar,tempNumNu, sig_dStar_2S, sig_d_2S);
+	      findDecaySignature(*gen_it,sig_FoundDDoubleStar,sig_numLeptons,sig_numPions,sig_numKaons,sig_numRhos,sig_numPi0,sig_numBaryons,sig_numD, sig_numDStar,tempNumNu, sig_dStar_2S, sig_d_2S, sig_DCharge);
 	    if(!sig_FoundDDoubleStar)
 	      {
 		//still none, so reset fields
@@ -3177,6 +3222,7 @@ namespace Belle {
 		sig_numPi0=0;
 		sig_numBaryons=0;
 		sig_numD=0;
+		sig_DCharge=0;
 		sig_numDStar=0;
 		sig_numRhos=0;
 	      }
@@ -3715,7 +3761,7 @@ namespace Belle {
   }
 
   //see if this B has any bDoubleSTar and count number of charged pions, kaons, pi0s (so independent of the actual decay)
-  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos,int& numPi0, int& numBaryons,int& numD, int& numDStar, int& numNu, bool& dStar_2S, bool& d_2S, bool trackRhoDecay)
+  bool bToDDoubleStar::findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos,int& numPi0, int& numBaryons,int& numD, int& numDStar, int& numNu, bool& dStar_2S, bool& d_2S, int& dCharge, bool trackRhoDecay)
   {
     genhep_vec* daughters=getDaughters(mother);
     int lund=fabs(mother.idhep());
@@ -3736,6 +3782,18 @@ namespace Belle {
 
     if(lund==PY_D || lund==PY_D0)
       {
+	if(lund==PY_D0)
+	  {
+	    dCharge=0;
+	  }
+	else
+	  {
+	    dCharge=-1;
+	    if(mother.idhep()>0)
+	      {
+		dCharge=1;
+	      }
+	  }
 	numD++;
 	return true;
       }
@@ -3748,6 +3806,19 @@ namespace Belle {
       }
     if(lund==PY_DStar || lund==PY_DStar0)
       {
+	if(lund==PY_DStar0)
+	  {
+	    dCharge=0;
+	  }
+	else
+	  {
+	    dCharge=-1;
+	    if(mother.idhep()>0)
+	      {
+		dCharge=1;
+	      }
+	  }
+
 	//don't add D decay products to number of pions etc...
 	numDStar++;
 	return true;
@@ -3809,7 +3880,7 @@ namespace Belle {
       }    
     for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
       {
-	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numRhos,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S,trackRhoDecay);
+	findDecaySignature(**it,dDoubleStar,numLeptons,numPions,numKaons,numRhos,numPi0,numBaryons,numD, numDStar,numNu,dStar_2S, d_2S,dCharge,trackRhoDecay);
       }
   }
 

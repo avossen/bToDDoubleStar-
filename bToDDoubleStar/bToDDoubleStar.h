@@ -56,7 +56,7 @@ public:
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
   bool findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numNu,int* br_sigs);
-  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S, bool trackRhoDecay=true);
+  bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S, int& dCharge,bool trackRhoDecay=true);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
   void saveTree();
@@ -135,6 +135,7 @@ public:
   int sig_numPi0;
   int sig_numBaryons;
   int sig_numD;
+  int sig_DCharge;
   int sig_numDStar;
 
 

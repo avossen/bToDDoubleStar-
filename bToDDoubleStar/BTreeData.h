@@ -5,6 +5,10 @@ class BTreeData
 {
  public:
 
+
+  int mcBCharge;
+
+
   int foundDPiPi;
   int recBToDlNuPiPi;
   //the two pion channel
@@ -84,6 +88,10 @@ class BTreeData
   float tagOverlapFractionPi0;
   int foundDDoubleStarInMC;
   int daughterDPID;
+  int overlapEvent;
+  int mcDCharge;
+  int mcIsDStar;
+
 
 
   float U[1000];
@@ -94,9 +102,15 @@ class BTreeData
   int systemCharge[1000];
   int leptonCharge[1000];
   int dCharge[1000];
+  int isDStar[1000];
+
+
+
   int recDType[1000];
   int numRecPions[1000];
   int bestD[1000];
+
+
   int dDecay[1000];
   int dType[1000];
 
@@ -139,6 +153,11 @@ class BTreeData
   //call at the beginning of the event to make sure that we don't have any stale data in the structure
   void initData()
   {
+
+    mcBCharge=-2;
+    mcIsDStar=-2;
+    mcDCharge=-2;
+
     pi1Found=-1;
     pi2Found=-1;
 
@@ -162,12 +181,12 @@ class BTreeData
    recBToDlNuPi=-1;
    logProb=-1;
 
-  bestBCharge=-1;
+  bestBCharge=-2;
   //systemCharge=-1;
 
    deltaETag=-1;
    mBTag=-1;
- tagId=-1;
+   tagId=-1;
   tagDecay=-1;
    tagCorr=-1;
 
@@ -224,7 +243,7 @@ class BTreeData
    foundDMeson=-1;
    dPID=-1;
 
-   tagOverlapFractionCharged=-1;
+   tagOverlapFractionCharged=-2;
    tagOverlapFractionPi0=-1;
    foundDDoubleStarInMC=-1;
    daughterDPID=-1;
