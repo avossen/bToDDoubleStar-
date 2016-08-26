@@ -1,6 +1,12 @@
 #ifndef DO_ANALYSIS_H
 #define DO_ANALYSIS_H
 
+#define P1STRING "(bestD==1 && pi1Mom > 0.24 && recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb > -3.5 && mDnPi < 3.0  "
+#define P2STRING "bestD==1 && pi2Mom < 0.24 && recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb  > -2.6  && mDnPi < 3.0 && !(dType==1 && dDecay==2) && !(dType==1 && dDecay==3) && !(dType==2) " 
+//#define P2STRING "recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb  > -3.0  && mDnPi < 3.0 "
+//&& !(dType==0 && dDecay==1) && !(dType==1 && dDecay==3) && !(dType==2 && dDecay==1) 
+
+
 #include <math.h>
 #include "TRandom.h"
 #include "TLegend.h"
@@ -22,8 +28,9 @@
 using namespace std;
 TRandom* rnd;
 int numBinsSB=20;
+int numBinsSBTop=40;
 int numBinsWS=20;
-char* allLegendNames[11];
+char* allLegendNames[9];
 
 enum selectionNames{};
 
@@ -37,7 +44,7 @@ int numBins=50;
 
 //float lowerCut=-0.5;
 float lowerCut=-1.0;
-float upperCut=1.0;
+float upperCut=2.0;
 
 bool withPIDCorrection;
 bool withLumiCorrection;
@@ -48,7 +55,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
 void addPoissonNoise(TH1F* h);
 
-TColor* glColorTable[11];
+TColor* glColorTable[9];
 void addCorrections(char* buffer)
 {
   stringstream str;
@@ -88,19 +95,18 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
 #ifdef MC_TEST
    templateScaleFactor=0.25;
 #endif
-
+   cout <<"using scale factor " << templateScaleFactor <<endl;
    for(int i=0;i<numComponents;i++)
      {
        summedComponents[i]->Sumw2();
        //       (*summedComponents)->SetFillStyle(1001);
        summedComponents[i]->Scale(templateScaleFactor);
-
      }
    cout <<"using scale factor: "<< templateScaleFactor <<endl;
   TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
   cout <<"fit fractions with " << numComponents <<" components"<<endl;
-  char* templateLegendNames[11];
-  for(int i=0;i<11;i++)
+  char* templateLegendNames[9];
+  for(int i=0;i<9;i++)
     {
       templateLegendNames[i]=new char[300];
     }
@@ -139,15 +145,17 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
       templates[5]=(TH1F*)summedComponents[5]->Clone(buffer);
       templates[5]->Add(summedComponents[6]);
       templates[5]->Add(summedComponents[7]);
-      templates[5]->Add(summedComponents[8]);
-      templates[5]->Add(summedComponents[9]);
+      //           templates[5]->Add(summedComponents[8]);
+      //      templates[5]->Add(summedComponents[9]);
 
-      sprintf(buffer,"%s plus %s and %s and  %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7],allLegendNames[8], allLegendNames[9]);
+      //      sprintf(buffer,"%s plus %s and %s and  %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7],allLegendNames[8], allLegendNames[9]);
+      sprintf(buffer,"%s plus %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7]);
       templates[5]->SetTitle(buffer);
       sprintf(templateLegendNames[5],"%s",buffer);
       //            templates[6]=summedComponents[6];
       //      templateLegendNames[6]=allLegendNames[6];
-      for(int i=10;i<numComponents;i++)
+      //      for(int i=10;i<numComponents;i++)
+      for(int i=8;i<numComponents;i++)
 	{
 	  templates[i-numMergers]=summedComponents[i];
 	  templateLegendNames[i-numMergers]=allLegendNames[i];
@@ -188,15 +196,27 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
 		//for the MC_test we still have to do the tag corr....
 	    if(dataTree)
 	      {
+
 #ifdef MC_TEST
-      sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		if(numPions==1)
+		  sprintf(buffer,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		else
+		  sprintf(buffer,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+
 #else
-	      sprintf(buffer,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		if(numPions==1)
+		  sprintf(buffer,"%s "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		else
+		  sprintf(buffer,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+
 #endif
 	      }
 	    else
 	      {
-		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		if(numPions==1)
+		  sprintf(buffer,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+		else
+		  sprintf(buffer,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
 	      }
 		  //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	  }
@@ -207,14 +227,23 @@ void fitFractions(TTree** trees, TH1F** summedComponents, int numComponents,int 
 
 		//for the MC_test we still have to do the tag corr....
 #ifdef MC_TEST
-		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		if(numPions==1)
+		  sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		else
+		  sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
 #else
-		sprintf(buffer,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		if(numPions==1)
+		  sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		else
+		  sprintf(buffer,"%s ("P2STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
 #endif
 	      }
 	    else
 	      {
-		sprintf(buffer,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		if(numPions==1)
+		  sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
+		else
+		  sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) ) ",corrBuffer,upperCut,lowerCut,numPions);
 	      }
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
 	  }
@@ -409,7 +438,7 @@ void loadComponents(TFile* file,TH1F** components, TH1F** summedComponents, int 
       for(int b=0;b<numComponents;b++)
 	{
 	  sprintf(buffer,"histo_If_%d_b_%d_numPions_%d_leptonId_%d",iF,b,numPions,leptonId);
-	  components[iF*11+b]=(TH1F*)file->Get(buffer);
+	  components[iF*9+b]=(TH1F*)file->Get(buffer);
 	}
     }
 
@@ -430,25 +459,25 @@ void loadComponents(TFile* file,TH1F** components, TH1F** summedComponents, int 
   sprintf(buffer,"DLnu_%dLept_%dPions",leptonId,numPions);
   summedComponents[4]=(TH1F*)file->Get(buffer);
 
-  sprintf(buffer,"DPiLNu_%dLept_%dPions",leptonId,numPions);
-  summedComponents[5]=(TH1F*)file->Get(buffer);
+  //  sprintf(buffer,"DPiLNu_%dLept_%dPions",leptonId,numPions);
+  //  summedComponents[5]=(TH1F*)file->Get(buffer);
 
   sprintf(buffer,"DPiPiLNu_%dLept_%dPions",leptonId,numPions);
-  summedComponents[6]=(TH1F*)file->Get(buffer);
+  summedComponents[5]=(TH1F*)file->Get(buffer);
 
   sprintf(buffer,"DStarLNu_%dLept_%dPions",leptonId,numPions);
-  summedComponents[7]=(TH1F*)file->Get(buffer);
+  summedComponents[6]=(TH1F*)file->Get(buffer);
 
-  sprintf(buffer,"DStarPiLNu_%dLept_%dPions",leptonId,numPions);
-  summedComponents[8]=(TH1F*)file->Get(buffer);
+  //  sprintf(buffer,"DStarPiLNu_%dLept_%dPions",leptonId,numPions);
+  //  summedComponents[8]=(TH1F*)file->Get(buffer);
 
   sprintf(buffer,"DStarPiPiLNu_%dLept_%dPions",leptonId,numPions);
-  summedComponents[9]=(TH1F*)file->Get(buffer);
+  summedComponents[7]=(TH1F*)file->Get(buffer);
 
   sprintf(buffer,"OtherBB_%dLept_%dPions",leptonId,numPions);
-  summedComponents[10]=(TH1F*)file->Get(buffer);
+  summedComponents[8]=(TH1F*)file->Get(buffer);
 
-  for(int i=0;i<11;i++)
+  for(int i=0;i<9;i++)
     {
       cout <<"loaded component " << i << " with counts " << summedComponents[i]->GetEntries()<<endl;
     }
@@ -457,11 +486,13 @@ void loadComponents(TFile* file,TH1F** components, TH1F** summedComponents, int 
 //trees: the input trees for the 4 MC files, components: The components for each file, so 4*11, summedComponents: The same, but summed over files
 void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, int numPions,int leptonId)
 {
+
+  cout <<"getting MC components..." <<endl;
   char histoName[2009];
   char drawCommand[2000];
   //just getting the MC components, so only looking at 4 files
   int numFiles=4;
-  int numComponents=11;
+  int numComponents=9;
 
   char buffer[2000];
   sprintf(buffer,"continuum_%dLept_%dPions",leptonId,numPions);
@@ -487,15 +518,8 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   sprintf(buffer,"OtherBB_%dLept_%dPions",leptonId,numPions);
   TH1F* hOtherBB=new TH1F(buffer,buffer,numBins,lowerCut,upperCut);
 
-  TH1F** histos[4];
-  for(int i=0;i<4;i++)
-    {
-      histos[i]=new TH1F*[7];
-    }
 
-  char* selections[11];
-
-
+  char* selections[9];
 
   char bufferDDStar[2000];
   char bufferDDStarPi[2000];
@@ -514,16 +538,20 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   char corrBuffer[2000];
   addCorrections(corrBuffer);
 
-
   if(leptonId!=0)
     {
-
-      sprintf(buffer,"%s tagCorr*(recDecaySignature  && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+      if(numPions==1)
+	sprintf(buffer,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
+      else
+ 	sprintf(buffer,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",corrBuffer,upperCut,lowerCut,numPions,leptonId);
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d  ",numPions,leptonId);
     }
   else
     {
-      sprintf(buffer,"%s tagCorr*(recDecaySignature   && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
+      if(numPions==1)
+	sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
+      else
+	sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) ",corrBuffer,upperCut,lowerCut,numPions);
       //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",numPions);
     }
 
@@ -548,26 +576,22 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
       //sprintf(bufferNoSelection,"%s)",bufferAll);
   //    sprintf(bufferAll,"%s)",buffer);
 
-
   cout <<"selection for DDstar: "<< bufferDDStar <<endl<<" DDstarPi: "<< bufferDDStarPi<<endl<< " DDstarPiPi: "<< bufferDDStarPiPi <<endl;
   cout <<" DlNu: " << bufferDlNu<<endl <<" DPilNu:"<< bufferDPilNu << endl << " DPiPilNu: "<< bufferDPiPilNu <<endl;
   cout <<" all: "<< bufferAll <<endl;
-
-
 
   selections[0]=bufferNoSelection;
   selections[1]=bufferDDStar;
   selections[2]=bufferDDStarPi;
   selections[3]=bufferDDStarPiPi;
   selections[4]=bufferDlNu;
-  selections[5]=bufferDPilNu;
-  selections[6]=bufferDPiPilNu;
+  //  selections[5]=bufferDPilNu;
+  selections[5]=bufferDPiPilNu;
 
-  selections[7]=bufferDStarlNu;
-  selections[8]=bufferDStarPilNu;
-  selections[9]=bufferDStarPiPilNu;
-  selections[10]=bufferAll;
-
+  selections[6]=bufferDStarlNu;
+  //  selections[8]=bufferDStarPilNu;
+  selections[7]=bufferDStarPiPilNu;
+  selections[8]=bufferAll;
 
   //
   // summedHistos: not differentiated between mixed and charged
@@ -579,17 +603,16 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   summedHistos[2]=hDDStarPi;
   summedHistos[3]=hDDStarPiPi;
   summedHistos[4]=hDlNu;
-  summedHistos[5]=hDPilNu;
-  summedHistos[6]=hDPiPilNu;
-  summedHistos[7]=hDStarlNu;
-  summedHistos[8]=hDStarPilNu;
-  summedHistos[9]=hDStarPiPilNu;
-  summedHistos[10]=hOtherBB;
-
+  //  summedHistos[5]=hDPilNu;
+  summedHistos[5]=hDPiPilNu;
+  summedHistos[6]=hDStarlNu;
+  //  summedHistos[8]=hDStarPilNu;
+  summedHistos[7]=hDStarPiPilNu;
+  summedHistos[8]=hOtherBB;
   
   for(int iF=0;iF<numFiles;iF++)
     {
-      cout <<" iF: "<< iF <<endl;
+      cout <<" iF: "<< iF <<" numComps: " << numComponents<< " numFiles: "<< numFiles <<endl;
       int allCounts=0;
       int noSelCounts=0;
       for(int b=0;b<numComponents;b++)
@@ -604,14 +627,14 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 	    allCounts+=counts;
 	  if(b==0)
 	    noSelCounts=counts;
-	  if(b==10)
+	  //  if(b==10)
+	  if(b==8)
 	    cout <<"all counts so far: "<< allCounts <<" no selection counts: "<< noSelCounts <<" difference: "<< noSelCounts-allCounts <<endl;
 	  cout <<"got " << counts <<" counts selected " <<endl;
 	  //do we have to clone this before we can return the histo?
 	  TH1F* result=(TH1F*)gDirectory->Get(histoName);
 	  result->SetFillColor(glColorTable[b]->GetNumber());
-	  components[iF*11+b]=result;
-
+	  components[iF*9+b]=result;
 	  //	  if(b!=10)
 	    {
 	      //uds or charm, but only use the noSelection
@@ -630,9 +653,7 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 		  summedHistos[b]->SetFillColor(glColorTable[b]->GetNumber());
 		}
 	    }
-
 	}
-
     }
   cout <<"done with getMCComponents" <<endl;
 };
@@ -644,8 +665,8 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int leptonId)
 {
 
-
-  int printOrder[]={0,10,1,3,4,5,9,7,8,6,2};
+  //  int printOrder[]={0,10,1,3,4,5,9,7,8,6,2};
+  int printOrder[]={0,8,1,3,4,7,6,5,2};
   if(numPions==1)
     {
       //      printOrder[10]=3;
@@ -657,7 +678,7 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
   cout <<"in save stack.. " <<endl;
   //this is for "all", i.e. not mixed, charged separation
   THStack all;
-  char* legendNames[11];
+  char* legendNames[9];
 
   int numFiles=4;
   char* fileNames[numFiles];
@@ -667,7 +688,7 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
     }
 
 
-  for(int i=0;i<11;i++)
+  for(int i=0;i<9;i++)
     {
       legendNames[i]=new char [300];
       allLegendNames[i]=new char[300];
@@ -675,29 +696,29 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 
 
   sprintf(legendNames[0]," no Selection");
-  sprintf(legendNames[1],"D Double Star (no Dn#pi l#nu)");
-  sprintf(legendNames[2],"D Double Star #pi (no Dn#pi l#nu)");
-  sprintf(legendNames[3],"D Double Star #pi #pi (no Dn#pi l#nu)");
+  sprintf(legendNames[1],"B #rightarrow D Double Star X #rightarrow D^{(*)} l #nu (no non-res Dn#pi l#nu)");
+  sprintf(legendNames[2],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi l #nu (no non-res Dn#pi l#nu)");
+  sprintf(legendNames[3],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi #pi l #nu (no non-res Dn#pi l#nu)");
   sprintf(legendNames[4],"D l #nu");
-  sprintf(legendNames[5],"D #pi l #nu");
-  sprintf(legendNames[6],"D #pi #pi l #nu");
+  //  sprintf(legendNames[5],"D #pi l #nu");
+  sprintf(legendNames[5],"D #pi #pi l #nu");
 
-  sprintf(legendNames[7],"D* l #nu");
-  sprintf(legendNames[8],"D* #pi l #nu");
-  sprintf(legendNames[9],"D* #pi #pi l #nu");
-  sprintf(legendNames[10]," no D(*)n #pi l#nu ");
+  sprintf(legendNames[6],"D* l #nu");
+  //  sprintf(legendNames[8],"D* #pi l #nu");
+  sprintf(legendNames[7],"D* #pi #pi l #nu");
+  sprintf(legendNames[8]," no D(*)n #pi l#nu ");
 
   sprintf(allLegendNames[0],"Continuum");
-  sprintf(allLegendNames[1],"D Double Star");
-  sprintf(allLegendNames[2],"D Double Star #pi");
-  sprintf(allLegendNames[3],"D Double Star #pi #pi");
+  sprintf(allLegendNames[1],"B #rightarrow D Double Star X #rightarrow D^{(*)}  l #nu");
+  sprintf(allLegendNames[2],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi l #nu");
+  sprintf(allLegendNames[3],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi #pi l #nu");
   sprintf(allLegendNames[4],"D l #nu");
-  sprintf(allLegendNames[5],"D #pi l #nu");
-  sprintf(allLegendNames[6],"D #pi #pi l #nu");
-  sprintf(allLegendNames[7],"D* l #nu");
-  sprintf(allLegendNames[8],"D* #pi l #nu");
-  sprintf(allLegendNames[9],"D* #pi #pi l #nu");
-  sprintf(allLegendNames[10]," other B B ");
+  //  sprintf(allLegendNames[5],"D #pi l #nu");
+  sprintf(allLegendNames[5],"D #pi #pi l #nu");
+  sprintf(allLegendNames[6],"D* l #nu");
+  //  sprintf(allLegendNames[8],"D* #pi l #nu");
+  sprintf(allLegendNames[7],"D* #pi #pi l #nu");
+  sprintf(allLegendNames[8]," other B B ");
 
 
   sprintf(fileNames[0],"mixed");
@@ -724,15 +745,15 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
       stacks[iF]=new THStack(bufferF,bufferF);
       TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
       //      int allCounts=0;
-      for(int b=0;b<11;b++)
+      for(int b=0;b<9;b++)
 	{
 	  int index=printOrder[b];
 	  cout <<"b: " << b <<" index: " << index<<endl;
 	  sprintf(histoName,"histo_If_%d_index_%d_numPions_%d_leptonId_%d",iF,index,numPions,leptonId);
 	  sprintf(outFileName,"%s.png",histoName);
-	  //	  components[iF*11+b]=result;
-	  cout <<"grabbing component.." << iF*11+index <<endl;
-	  TH1F* result=(TH1F*)components[iF*11+index];
+	  //	  components[iF*9+b]=result;
+	  cout <<"grabbing component.." << iF*9+index <<endl;
+	  TH1F* result=(TH1F*)components[iF*9+index];
 	  cout <<"done that .." <<endl;
 	  //  if(counts>0)
 	    {
@@ -786,7 +807,7 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
   ///the summed, all stuff...
   TH1F**  summedHistos=summedComponents;
   TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
-  for(int i=0;i<11;i++)
+  for(int i=0;i<9;i++)
     {
       int index=printOrder[i];
       all.Add(summedHistos[index]);
@@ -814,7 +835,7 @@ void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int lep
 
 void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPions, TH1F** lowerSidebandMC, TH1F** upperSidebandMC, TH1F** lowerSidebandData, TH1F** upperSidebandData)
 {
-  float upperSidebandTop=1.0;
+  float upperSidebandTop=2.0;
   float upperSidebandBottom=0.5;
 
   float lowerSidebandTop=-0.5;
@@ -833,27 +854,56 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
-      sprintf(upperSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+      if(numPions==1)
+	sprintf(upperSBSelection,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+      else
+	sprintf(upperSBSelection,"%s tagCorr*("P2STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId);
 
-      sprintf(upperSBSelectionData," (recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+
+      if(numPions==1)
+	sprintf(upperSBSelectionData,P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId);
+      else
+	sprintf(upperSBSelectionData," ("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId);
      
-      sprintf(lowerSBSelection,"%s tagCorr*(recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
-      sprintf(lowerSBSelectionData," (recDecaySignature && mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      if(numPions==1)
+	sprintf(lowerSBSelection,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      else
+	sprintf(lowerSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+
+      if(numPions==1)
+	sprintf(lowerSBSelectionData,P1STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
+      else
+	sprintf(lowerSBSelectionData," ("P2STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-      sprintf(upperSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
-      sprintf(upperSBSelectionData,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      if(numPions==1)
+	sprintf(upperSBSelection,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      else
+	sprintf(upperSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+
+      if(numPions==1)
+	sprintf(upperSBSelectionData,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
+      else
+	sprintf(upperSBSelectionData,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) ) ",buffer, upperSidebandTop,upperSidebandBottom,numPions);
         
-      sprintf(lowerSBSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
-      sprintf(lowerSBSelectionData,"%s (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      if(numPions==1)
+      sprintf(lowerSBSelection,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      else
+      sprintf(lowerSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+
+      if(numPions==1)
+	sprintf(lowerSBSelectionData,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+      else
+	sprintf(lowerSBSelectionData,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions);
+
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   cout <<"upper selection: "<< upperSBSelection << " lower selection : "<< lowerSBSelection<<endl;
   sprintf(histoName,"upperSideBandMC_numPions_%d_leptonId_%d",numPions,leptonId);
-  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,upperSidebandBottom,upperSidebandTop);
+  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSBTop,upperSidebandBottom,upperSidebandTop);
   int counts=mcTree->Draw(drawCommand,(char*)upperSBSelection);
   cout <<"got " << counts <<" counts from mc upperSB selected for lepton ID "<< leptonId <<endl;
   *upperSidebandMC=(TH1F*)gDirectory->Get(histoName);
@@ -865,7 +915,7 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   *lowerSidebandMC=(TH1F*)gDirectory->Get(histoName);
 
   sprintf(histoName,"upperSideBandData_numPions_%d_leptonId_%d",numPions,leptonId);
-  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSB,upperSidebandBottom,upperSidebandTop);
+  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBinsSBTop,upperSidebandBottom,upperSidebandTop);
   cout <<"about to get data with string: "<< drawCommand <<endl;
   counts=dataTree->Draw(drawCommand,(char*)upperSBSelectionData);
   cout <<"got " << counts <<" counts from data upperSB selected " <<endl;
@@ -894,23 +944,51 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId, int numP
   if(leptonId!=0)
     {
 
-      sprintf(sameChargeSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      if(numPions==1)
+	sprintf(sameChargeSelection,"%s tagCorr*"P1STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      else
+	sprintf(sameChargeSelection,"%s tagCorr*("P2STRING"&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
       
-        sprintf(chargeNeutralSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
 
-      sprintf(sameChargeSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ", upperCut,lowerCut,numPions,leptonId);
+      if(numPions==1)
+        sprintf(chargeNeutralSelection,"%s tagCorr*"P1STRING" && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+      else
+        sprintf(chargeNeutralSelection,"%s tagCorr*("P2STRING"&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",buffer, upperCut,lowerCut,numPions,leptonId);
+
+      if(numPions==1)
+      sprintf(sameChargeSelectionData," "P1STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ", upperCut,lowerCut,numPions,leptonId);
+      else
+      sprintf(sameChargeSelectionData," ("P2STRING"&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d)  ", upperCut,lowerCut,numPions,leptonId);
       
-        sprintf(chargeNeutralSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",upperCut,lowerCut,numPions,leptonId);
+      if(numPions==1)
+        sprintf(chargeNeutralSelectionData," "P1STRING" && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",upperCut,lowerCut,numPions,leptonId);
+      else
+        sprintf(chargeNeutralSelectionData," ("P2STRING"&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d)  ",upperCut,lowerCut,numPions,leptonId);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
-      sprintf(sameChargeSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
-      sprintf(chargeNeutralSelection,"%s tagCorr*(recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+      if(numPions==1)
+	sprintf(sameChargeSelection,"%s tagCorr*"P1STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
+      else
+	sprintf(sameChargeSelection,"%s tagCorr*("P2STRING" && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",buffer, upperCut,lowerCut,numPions);
 
-      sprintf(sameChargeSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",upperCut,lowerCut,numPions);
-      sprintf(chargeNeutralSelectionData," (recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",upperCut,lowerCut,numPions);
+      if(numPions==1)
+	sprintf(chargeNeutralSelection,"%s tagCorr*"P1STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+      else
+	sprintf(chargeNeutralSelection,"%s tagCorr*("P2STRING" && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",buffer, upperCut,lowerCut,numPions);
+
+
+      if(numPions==1)
+	sprintf(sameChargeSelectionData," "P1STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",upperCut,lowerCut,numPions);
+      else
+	sprintf(sameChargeSelectionData," ("P2STRING" && bestBCharge==systemCharge && abs(bestBCharge)==1 ) ",upperCut,lowerCut,numPions);
+
+      if(numPions==1)
+	sprintf(chargeNeutralSelectionData," "P1STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",upperCut,lowerCut,numPions);
+      else
+	sprintf(chargeNeutralSelectionData," ("P2STRING" && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0)) ) ",upperCut,lowerCut,numPions);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   sprintf(histoName,"sameChargeMC_numPions_%d_leptonId_%d",numPions,leptonId);
