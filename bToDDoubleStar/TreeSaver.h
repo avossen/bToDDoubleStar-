@@ -71,8 +71,6 @@ public:
     addFieldF("PIDCorrection");
     addFieldF("CrossSectionLumiCorrection");  
 
-
-
     addFieldF("pi1Mom_mc");
     addFieldF("pi2Mom_mc");
     addFieldF("pi1Theta_mc");
@@ -89,8 +87,6 @@ public:
     addFieldI("bestBCharge");
     addFieldI("mcBCharge");
 
-
-
     addFieldI("sig_numPions");
     addFieldI("sig_numKaons");
     addFieldI("sig_numPi0");
@@ -98,8 +94,6 @@ public:
     addFieldI("sig_numBaryons");
     addFieldI("sig_numD");
     addFieldI("sig_numDStar");
-
-
 
     addFieldI("sig_DLNu");
     addFieldI("sig_DPiLNu");
@@ -109,7 +103,6 @@ public:
     addFieldI("sig_DStarPiLNu");
     addFieldI("sig_DStarPiPiLNu");
 
-
     addFieldI("sig_ResDLNu");
     addFieldI("sig_ResDPiLNu");
     addFieldI("sig_ResDPiPiLNu");
@@ -117,8 +110,6 @@ public:
     addFieldI("sig_ResDStarLNu");
     addFieldI("sig_ResDStarPiLNu");
     addFieldI("sig_ResDStarPiPiLNu");
-
-
 
     addFieldF("tagOverlapFractionCharged");
     addFieldF("tagOverlapFractionPi0");
@@ -180,9 +171,6 @@ public:
     addArrayF("leptonPhi");
     addArrayF("pi1Phi");
     addArrayF("pi2Phi");
-
-
-
 
     addArrayF("DDiff");
     addArrayF("DStarDiff");
@@ -500,7 +488,7 @@ public:
 
 
  //std: float datatype
-  void addFieldF(char* fieldname)
+  void addFieldF(const char* fieldname)
   {
     //construct the memory location from which the tree should read the new data field
     float* memLoc=new float;
@@ -510,7 +498,7 @@ public:
   };
 
 
-  void addFieldI(char* fieldname)
+  void addFieldI(const char* fieldname)
   {
     int* memLoc=new int;
     treeData.push_back(memLoc);
@@ -518,7 +506,7 @@ public:
     fieldNamesI.push_back(fieldname);
   };
 
-  void addArrayI(char* fieldname)
+  void addArrayI(const char* fieldname)
   {
     //standard lenth, shouldn't be more than that
     int* memLoc=new int[1200];
@@ -530,7 +518,7 @@ public:
     pDataTree->Branch(fieldname,memLoc,(fieldname+string("[")+counterName+string("]/I")).c_str());
   };
 
-  void addArrayF(char* fieldname)
+  void addArrayF(const char* fieldname)
   {
     float* memLoc=new float[1200];
     int* memLocCounter=new int;

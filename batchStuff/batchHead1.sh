@@ -3,3 +3,4 @@
 #                       # use `belle' for belle analysis 
 #SBATCH -t 12:00:00     # time limit for job in HH:MM:SS
 #SBATCH -N 1            # number of CPU cores requested
+export OMP_NUM_THREADS=1
