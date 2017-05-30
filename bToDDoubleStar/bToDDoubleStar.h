@@ -19,9 +19,9 @@
 #include <iostream>
 
 #include "bToDDoubleStar/PIDCorrections.h"
+#include "bToDDoubleStar/FFCorrections.h"
 
 using namespace std;
-
 
 
 using namespace std;
@@ -55,7 +55,7 @@ public:
   // begin_run function
   void begin_run ( BelleEvent*, int* );
   void findDStar(vector<Hep3Vector>& allPB, vector<int>& allPB_Class, vector<int>& allPB_Charge);
-  bool findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numNu,int* br_sigs);
+  bool findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons,int& numNu,int* br_sigs,HepLorentzVector& p_D, HepLorentzVector& p_l, HepLorentzVector& p_nu);
   bool findDecaySignature(const Gen_hepevt &mother,bool& dDoubleStar,int& numLeptons, int& numPions, int& numKaons, int& numRhos, int& numPi0, int& numBaryons,int& numD, int& numDStar,int& numNu, bool& dStar_2S, bool& d_2S, int& dCharge,bool trackRhoDecay=true);
   void disp_stat ( const char* ){}
   void saveHistos( vector<Hep3Vector>& v_allParticlesBoosted, vector<Hep3Vector>& v_allParticlesNonBoosted);
@@ -80,6 +80,8 @@ public:
   int test;
   int zNums[4];
   double smpl_;
+  int mc_type;
+  int excludeSignal;
   char rFileName[200];
 
 
@@ -88,10 +90,10 @@ public:
   double bestBPz;
 
   set<int> chargedIds;
-    set<int> pi0Ids;
-    set<int> gammaIds;
-
-    int getOverlap(set<int>& s1, set<int>& s2);
+  set<int> pi0Ids;
+  set<int> gammaIds;
+  
+  int getOverlap(set<int>& s1, set<int>& s2);
 
   bool recursivePrint(const Gen_hepevt gen_it, string s);
   bool isAnyD(int lund);
@@ -117,10 +119,19 @@ public:
   Ptype cKPlus;
   Ptype cKNeg;
  protected:
+  float cosTheta;
+  float w;
+  float q2;
+  float ff_pL;
+  int lType;
+  int dssIdx;
+  bool foundDDecayForFF;
 
+  vector<int> D_lundIds;
   bool checkDoubleUse(Particle& D, Particle& pion);
 
   PIDCorrections pidCorrections;
+  FFCorrections ffCorrections;
 
   int evtNr;
   int runNr;
@@ -146,8 +157,6 @@ public:
 
   set<int> foundChargedDecIds;
 
-
-
   ///for corrections
   int br_sig_D0LNu;
   int br_sig_DLNu;
@@ -167,24 +176,23 @@ public:
   int br_sig_D1Prime0LNu;
   int br_sig_D0Star0LNu;
   
-static const int br_sig_D0=0;
-static const  int br_sig_D=1;
-
-static const  int br_sig_DStar=2;
-static const  int br_sig_DStar0=3;
-
-static const  int br_sig_D1=4;
-static const  int br_sig_D2=5;
-
-static const  int br_sig_D1Prime=6;
-static const  int br_sig_D0Star=7;
-
-static const  int br_sig_D10=8;
-static const  int br_sig_D20=9;
+  static const int br_sig_D0=0;
+  static const  int br_sig_D=1;
   
-static const  int br_sig_D1Prime0=10;
-static const  int br_sig_D0Star0=11;
-
+  static const  int br_sig_DStar=2;
+  static const  int br_sig_DStar0=3;
+  
+  static const  int br_sig_D1=4;
+  static const  int br_sig_D2=5;
+  
+  static const  int br_sig_D1Prime=6;
+  static const  int br_sig_D0Star=7;
+  
+  static const  int br_sig_D10=8;
+  static const  int br_sig_D20=9;
+  
+  static const  int br_sig_D1Prime0=10;
+  static const  int br_sig_D0Star0=11;
 
     //
 
@@ -255,7 +263,6 @@ private:
     float dataFactorError[12];
     float overallCorrFactors[12];
 
-
     float dDecayFactorsMC[25];
     float dDecayFactorsData[25];
     float dDecayFactorsDataErrors[25];
@@ -266,11 +273,12 @@ private:
 
 
     bool foundSinglePionDecay;
+    bool foundDlNu;
   float getDecayDist();
   float getDecayDistK();
   float getDecayDistD();
   float getDecayDistPN();
-  bool checkForDPiPi(int& bMesonId, bool& foundSinglePionDecay,bool print=false);
+  bool checkForDPiPi(int& bMesonId, bool& foundSinglePionDecay,bool& foundDlNu,bool print=false);
   void printUse();
   void cleanPi0s();
   //  bool compPi0s(Particle* p1, Particle* p2);
@@ -408,6 +416,8 @@ extern "C" Module_descr *mdcl_bToDDoubleStar()
   dscr->define_param("smpl", "test parameter", &module->smpl_);
   //hopefully the int is the maximum lenght of the string...
   dscr->define_param("rfname","root file name","S",100,&module->rFileName);
+  dscr->define_param("mcType","mcType",&module->mc_type);
+  dscr->define_param("excludeSignal","excludeSignal",&module->excludeSignal);
   //registers parameters of ipprofile...
   IpProfile::define_global(dscr);
   return dscr;

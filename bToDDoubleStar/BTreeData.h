@@ -31,6 +31,8 @@ class BTreeData
 
   float pidCorrection;
   float CrossSectionLumiCorrection;
+  float FFCorrection;
+
 
   int leptonId;
 
@@ -99,6 +101,9 @@ class BTreeData
   float mB[1000];
   float mXl[1000];
   float mDnPi[1000];
+  //recoil for B->Dlnu
+  float w[1000];
+
   int systemCharge[1000];
   int leptonCharge[1000];
   int dCharge[1000];
@@ -194,6 +199,7 @@ class BTreeData
    B_DecayCorr=-1;
    pidCorrection=-1;
    CrossSectionLumiCorrection=-1;
+   FFCorrection=-1;
 
    leptonId=-1;
 

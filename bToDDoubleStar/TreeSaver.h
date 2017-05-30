@@ -70,6 +70,7 @@ public:
     addFieldF("B_DecayCorr");
     addFieldF("PIDCorrection");
     addFieldF("CrossSectionLumiCorrection");  
+    addFieldF("FFCorrection");
 
     addFieldF("pi1Mom_mc");
     addFieldF("pi2Mom_mc");
@@ -157,7 +158,8 @@ public:
     addArrayF("mB");
     addArrayF("mXl");
     addArrayF("mDnPi");
-
+    //this is the recoil for the B->Dlnu
+    addArrayF("w");
     addArrayF("leptonMom");
     addArrayF("pi1Mom");
     addArrayF("pi2Mom");
@@ -203,7 +205,7 @@ public:
       //      cout <<"saving d decay corr : "<< data->D_DecayCorr <<" b decay corr: "<< data->B_DecayCorr<<endl;
       (*(float*)treeData[index++])=data->pidCorrection;
       (*(float*)treeData[index++])=data->CrossSectionLumiCorrection;
-
+      (*(float*)treeData[index++])=data->FFCorrection;
 
       (*(float*)treeData[index++])=data->pi1Mom_mc;
       (*(float*)treeData[index++])=data->pi2Mom_mc;
@@ -225,7 +227,6 @@ public:
       (*(int*)treeData[index++])=data->bestBCharge;
       (*(int*)treeData[index++])=data->mcBCharge;
       //      cout <<"any ddouble star: "<<data->foundAnyDDoubleStar <<endl;
-
 
       (*(int*)treeData[index++])=data->sig_numPions;
       (*(int*)treeData[index++])=data->sig_numKaons;
@@ -283,7 +284,6 @@ public:
       (*(int*)treeData[index++])=data->daughterDPID;
       (*(int*)treeData[index++])=data->recDDoubleStar;
       (*(int*)treeData[index++])=data->tagId;
-
 
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
@@ -378,6 +378,14 @@ public:
 	  ((float*)treeData[index])[i]=data->mDnPi[i];
 	}
       ++index;
+
+      (*(int*)treeData[index++])=data->size;
+      for(int i=0;i<data->size;i++)
+	{
+	  ((float*)treeData[index])[i]=data->w[i];
+	}
+      ++index;
+
 
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)

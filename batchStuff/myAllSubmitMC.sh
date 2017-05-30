@@ -9,15 +9,16 @@ for ex in 07 09 11 13 15 17 19 21 23 25 27 31 33 35 37 39 41 43 45 47 49 51 53 5
 do
 for spec in charged mixed
 do
-
-myDir=subMC_ex$ex\_$res\_$spec
+for period in p1 p2 
+do
+myDir=subMC_ex$ex\__$spec\_$period
 mkdir $myDir
 echo " dir: $myDir " ;
 mkdir /group/belle/users/vossen/bToDLNu/$myDir
 mkdir /group/belle/users/vossen/bToDLNuOut/$myDir
 
 #for d in `cat mc$1_onRes.list`
-for d in `cat newHuschleMC$ex\_$spec.list`
+for d in `cat newHuschleMC$ex\_$spec\_$period.list`
 do
 let "counter+=1"
 #if [ "$counter" -le "$5" ]
@@ -34,12 +35,20 @@ echo "#BSUB -J bToD_$subCounter"  >> $targetShFile
 cat batchHead2.sh >> $targetShFile 
 #module put_parameter bToDDoubleStar rfname\mcEx55.root
 echo "module put_parameter bToDDoubleStar rfname\\/group/belle/users/vossen/bToDLNu/$myDir/job_$subCounter.root" >> $targetShFile
+if [ "$spec" == "mixed" ]; then
+    echo "module put_parameter bToDDoubleStar mcType\\1001" >> $targetShFile
+fi
+
+if [ "$spec" == "charged" ]; then
+    echo "module put_parameter bToDDoubleStar mcType\\1002" >> $targetShFile
+fi
+
 cat batchMiddle.sh >> $targetShFile
 echo "process_event $d 0" >> $targetShFile
 cat batchEnd.sh >> $targetShFile
 #fi
 #fi
-
+done
 done
 done
 done

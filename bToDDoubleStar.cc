@@ -161,6 +161,9 @@ namespace Belle {
 #endif
     //    cout <<"constructor..." <<endl;
     strcpy(rFileName,"notInitialized.root");
+    //set default to charm correction same as uds
+    mc_type=1003;
+    excludeSignal=0;
     test=0;
     for(int i=0;i<4;i++)
       {
@@ -202,7 +205,7 @@ namespace Belle {
   // initilization
   void bToDDoubleStar::init(int *status)
   {
-    //    cout <<"init.." <<endl;
+        cout <<"init... (bTodDDouleStar)" <<endl;
 #ifdef XCHECK
     pXCheck=new ofstream("xcheck");
 #endif
@@ -288,7 +291,25 @@ namespace Belle {
   // begin_run function
   void bToDDoubleStar::begin_run(BelleEvent* evptr, int* status)
   {
-    //    cout <<" begin run  " << endl;
+
+
+    D_lundIds.push_back(PY_D0);
+    D_lundIds.push_back(PY_D);
+    D_lundIds.push_back(PY_DStar);
+    D_lundIds.push_back(PY_DStar0);
+    //D_1
+    D_lundIds.push_back(10413);
+    D_lundIds.push_back(PY_DStar_2);
+    //D1Prime
+    D_lundIds.push_back(20413);
+    D_lundIds.push_back(PY_DStar0Plus);
+    D_lundIds.push_back(PY_D_10);
+    D_lundIds.push_back(PY_DStar_20);
+    //D1Prime0
+    D_lundIds.push_back(20423);
+    D_lundIds.push_back(PY_DStar_00);
+
+        cout <<" begin run  (bToDDoubleStar)" << endl;
     IpProfile::begin_run();
     eid::init_data();
 
@@ -329,7 +350,6 @@ namespace Belle {
   void bToDDoubleStar::hist_def()
   {
     Particle p;
-
     if(rFileName!=0)
       cout <<endl<<":::----- rFileName (handedness): " << rFileName <<endl<<endl;
     else
@@ -367,9 +387,12 @@ namespace Belle {
   // event function
   void bToDDoubleStar::event(BelleEvent* evptr, int* status)
   {
+
+    dssIdx=-1;
+    lType=-1;
+    //    cout <<"mc type: "<< mc_type<<endl;
+    //    cout <<"reading event (bToDDoubleStar)" << endl;
     foundChargedDecIds.clear();
-
-
     Evtcls_hadron_info_Manager& hadronInfo_mgr = Evtcls_hadron_info_Manager::get_manager();
     float  visEnergyOnFile=hadronInfo_mgr.begin()->Evis();
     kinematics::E_miss=kinematics::Q-visEnergyOnFile;
@@ -402,7 +425,6 @@ namespace Belle {
     sigDLNu=0;
     sigDPiLNu=0;
     sigDPiPiLNu=0;
-
 
     sigResDStarLNu=0;
     sigResDStarPiLNu=0;
@@ -463,10 +485,14 @@ namespace Belle {
     int bMesonId;
 
     foundSinglePionDecay=false;
+    foundDlNu=false;
     noDRec=false;
 
     if(!validRun)
-      return;
+      {
+	cout <<" no valid run " << endl;
+	return;
+      }
 
 
 
@@ -482,6 +508,8 @@ namespace Belle {
     float XSectionWeight=1.0;
     float lumiWeight=1.0;
 
+    float ffWeight=1.0;
+
     //pid efficiencies only on the signal side (tag correction is done separately)
     float pidWeight=1.0;
     //br correction done independently if signal or tag side
@@ -489,23 +517,43 @@ namespace Belle {
 
     if(m_mc)
       {
-
 	if(foundUnwantedDDoubleStar())
 	  {
 	    if(kickOut2S)
 	      return;
 	  }
-
-
 	Mctype_Manager &mctype_m = Mctype_Manager::get_manager();
-	int mc_type = mctype_m.begin()->type();
-	XSectionWeight=pidCorrections.getXSectionCorrection(m_mc,mc_type);
-	lumiWeight=pidCorrections.getLumiCorrection(expNr);
 
-	//find b meson id in the simulation
-   
-	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay);
-	if(foundDPiPi || foundSinglePionDecay)
+	//this doesn't work with Jan's (Huschle) MC, correction factor is about 2%, let's set it to one for now
+	//for the usual one we now set the flag 'excludeSignal', so we can use that to see if we can ask for the mc_type
+
+	if(excludeSignal>0)
+	  mc_type = mctype_m.begin()->type();
+
+
+	XSectionWeight=pidCorrections.getXSectionCorrection(m_mc,mc_type);
+	XSectionWeight=1.0;
+
+	lumiWeight=pidCorrections.getLumiCorrection(expNr);
+	float ffWeight, ffStat,ffSys;
+	if(dssIdx>-1 && lType>-1)
+	  {
+	    cout <<"both, D**lnu and D(*)lnu??" <<endl;
+	  }
+	if(lType>-1)
+	  {
+	    ffCorrections.getWeightD(ff_pL,q2,lType,ffWeight,ffStat,ffSys);
+	    ffWeight*=ffWeight;
+	  }
+
+	if(dssIdx>-1)
+	  {
+	    ffCorrections.getWeightDDStar(w,cosTheta,dssIdx,ffWeight,ffStat,ffSys);
+	    ffWeight*=ffWeight;
+	  }
+	//find b meson id in the simulation (also does the determination of the subprocess for the BR etc correction
+	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay, foundDlNu);
+	if(foundDPiPi || foundSinglePionDecay || foundDlNu)
 	  {
 	    //print
 	    //	foundDPiPi=checkForDPiPi(bMesonId,true);
@@ -515,7 +563,6 @@ namespace Belle {
 	      {
 		if(gen_it->get_ID()!=bMesonId)
 		  continue;
-
 		
 		//call recCheck with the meson that has the desired decay
 		recCheck((*gen_it),decIds,pids,numNu);
@@ -524,7 +571,11 @@ namespace Belle {
 	  }
       }
     //    printMCList();
-  
+
+
+
+
+
     chargedIds.clear();
     pi0Ids.clear();
     gammaIds.clear();
@@ -548,6 +599,8 @@ namespace Belle {
 	//	        cout << "nr " <<evtNr <<endl;
       }
     test++;
+
+
 
     //#ifndef MC
     if(!goodHadronB())
@@ -582,8 +635,16 @@ namespace Belle {
       {
 	//		cout <<" got B and the dpipi" << endl;
       }
+    if(ekpfullrecon_m.size()!=0)
+      {
 
-
+	//	cout <<"ekpfull found something" <<endl;
+      }
+    else
+      {
+	//	cout <<"ekp didn't find anything " << endl;
+      }
+    //    cout <<"looking for ekpfullrecon " <<endl;
     //first bind best B meson and decay products
     for(std::vector<Ekpfullrecon>::iterator it=ekpfullrecon_m.begin();it!=ekpfullrecon_m.end();it++)
       {
@@ -595,7 +656,6 @@ namespace Belle {
 	float DeltaE=ekpfullrecon.DeltaE();
 	//gives the pythia code of tag
 	int tag=abs(ekpfullrecon.tag_id());
-
 	if(log_nbout< _log_nbout_min)
 	  continue;
 	if(log_nbout<bestLogProb)
@@ -611,26 +671,22 @@ namespace Belle {
 	    bestTag=tag;
 	  }
 
-
 	//I guess M_bc is beam constrained mass...
 	//	cout<<"ex: nbout "<< nbout << " .. tab_Mbc:" << tab_Mbc<<" decay: " << decay<<", deltaE: " << DeltaE <<" tagCorr: " << tagCorr <<endl;
-
 	Particle & bcand = const_cast<Particle &>(brecon.getParticle( (int)ekpfullrecon.get_ID() ));
 	bestId=(int) ekpfullrecon.get_ID();
 	//	cout <<"found candidate " << bcand.pType().name() <<" with " << bcand.nChildren()<<", pcode: "<< bcand.pType().lund()<<endl;
 	histoNbOut->Fill(nbout);
-
 	histoChargedBTag_M->Fill(tab_Mbc);
 	histoChargedBTag_dE->Fill(DeltaE);
 
 	histoB0Tag_M->Fill(tab_Mbc);
 	histoB0Tag_dE->Fill(DeltaE);
 
-	//	cout <<"looking at " << bcand.nChildren() <<" children "<<endl;
-	for(int i=0;i<bcand.nChildren();i++)
+	int numBChildren = bcand.nChildren();
+	for(int i=0;i<numBChildren;i++)
 	  {
 	    const Particle& p=bcand.child(i);
-	    //	    	    cout <<"child " << i << ": " << p.pType().name() <<" pcode; " << p.pType().lund()<<endl;
 	    if(p.mdstCharged())
 	      {
 		//		cout <<"looking at charged.." <<endl;
@@ -645,16 +701,14 @@ namespace Belle {
 		    for(int k=0;k<p2.nChildren();k++)
 		      {
 			const Particle& p3=p2.child(k);
-			//			cout <<"--->--->"<<p3.pType().name()<<endl;
+			//	cout <<"--->--->"<<p3.pType().name()<<endl;
 		      }
 		  }
 	      }
 	  }
-	//	cout <<"about to get decay ids .." <<endl;
 
 	//	cout <<"got " << chargedIds.size() << " charged Ids, " << pi0Ids.size() <<" pi0s, " << gammaIds.size() <<" gammas " << endl;
       }
-    
     //need good b
     if(bestLogProb<_log_nbout_min)
       {
@@ -662,7 +716,7 @@ namespace Belle {
 	return;
       }
     //According to Christoph, there are no non-resonant D(*)pilnu decays...
-    if(m_mc &&(sigDPiLNu|| sigDStarPiLNu))
+    if(m_mc && (sigDPiLNu || sigDStarPiLNu))
       {
 	exitEvent();
 	return;
@@ -674,6 +728,8 @@ namespace Belle {
     bestBPx=bestBcand.px();
     bestBPy=bestBcand.py();
     bestBPz=bestBcand.pz();
+
+
     //    cout <<"looking at b cand" <<endl;
 
     //    if(bestBcand.mdstVee2())
@@ -685,7 +741,6 @@ namespace Belle {
     //    Gen_hepevt hepEvt=get_hepevt(p->mdst);
 
     float tagCorr=tagcorr(bestDecay,bestProb);
-
     treeData.mBTag=bestTagM;
     treeData.deltaETag=bestDeltaE;
     treeData.tagDecay=bestDecay;
@@ -785,7 +840,7 @@ namespace Belle {
 		//	      if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
 		if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
 		  {
-		    cout <<"ks pidweight : " << pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
+		    //		    cout <<"ks pidweight : " << pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
 		  }
 	      
 	      }
@@ -807,8 +862,8 @@ namespace Belle {
 
 	//part of the tag
 	if(chargedIds.find(chr_it->get_ID())!=chargedIds.end()){
-	  //	 	  cout <<"charged track is part of track " <<endl;
-	  continue;
+	  //	 	  cout <<"charged track is part of tag " <<endl;
+	  	  continue;
 	}
 
 
@@ -1186,7 +1241,7 @@ namespace Belle {
 	//	cout <<"init mass; " << pi0.mass()<<endl;
 	if(!doKmFit(*p,  confLevel,0,m_pi0))
 	  {
-	    continue;
+	    	    continue;
 	  }
 	//	cout << "after km fit pi0 px: "<< pi0.px()<<" py: "<< pi0.py() <<" pz: "<< pi0.pz() <<endl;
 	//	cout <<"mass; " << pi0.mass()<<endl;
@@ -1262,7 +1317,8 @@ namespace Belle {
       {
 	double confLevel;
 	//		cout <<"mass before d0 mit: "<< (*itD)->p().mag()<<endl;
-	if(!doKmVtxFit2(*(*itD),  confLevel,0))
+///!	if(!doKmFit(*(*itD),  confLevel,0))
+if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	  {
 	    delete *itD;
 	  }
@@ -1285,13 +1341,14 @@ namespace Belle {
     for(vector<Particle*>::iterator itD=chargedDCandidates.begin();itD!=chargedDCandidates.end();itD++)
       {
 	double confLevel;
-	if(!doKmVtxFit2(*(*itD),  confLevel,0))
+       if(!doKmVtxFit2(*(*itD),  confLevel,0))
+///!	if(!doKmFit(*(*itD),  confLevel,0))
 	  {
 	    //	    cout <<" no good charged D " <<endl;
 	    delete *itD;
 	  }
 	else
-	  {
+  {
 	    //	    cout <<" good charged D " << endl;
 	    tempParticles.push_back(*itD);
 	  }
@@ -1310,13 +1367,14 @@ namespace Belle {
 	double confLevel;
 	//	cout <<" d star before: "<<	(*itD)->p().mag() <<endl;
 	//in principle mass-vertex constrained fit here (not just mass...)
-	if(!doKmVtxFit2(*(*itD),  confLevel,0))
-	  {
-	    //	    cout <<" no good dstar .. " <<endl;
+		if(!doKmVtxFit2(*(*itD),  confLevel,0))
+///!	if(!doKmFit(*(*itD),  confLevel,0))
+  {
+    //	    cout <<" no good dstar .. " <<endl;
 	    delete *itD;
 	  }
 	else
-	  {
+	{
 	    //	      cout <<"found good dstar .." <<endl;
 	    tempParticles.push_back(*itD);
 	    //	cout <<" d star after: "<<	(*itD)->p().mag() <<endl;
@@ -1378,7 +1436,11 @@ namespace Belle {
     bool mcDecaySignature=false;
     bool foundRecDecay=false;
     if(m_mc)
-      mcDecaySignature=(sig_FoundDDoubleStar && sig_numLeptons==1 && sig_numKaons==0 && (sig_numPions==1 || sig_numPions==2) && sig_numPi0==0 && sig_numBaryons==0);
+      {
+	//if we would want to add the sig_numPion==0 case we should add this case w/o the foundDDoubleStar condition
+	//which will obviously not be fulfilled
+	mcDecaySignature=(sig_FoundDDoubleStar && sig_numLeptons==1 && sig_numKaons==0 && (sig_numPions==1 || sig_numPions==2) && sig_numPi0==0 && sig_numBaryons==0);
+      }
 
     if(mcDecaySignature)
       {
@@ -1389,6 +1451,9 @@ namespace Belle {
 
     treeData.pidCorrection=pidWeight;
     treeData.CrossSectionLumiCorrection=XSectionWeight*lumiWeight;
+    treeData.FFCorrection=ffWeight;
+
+
 
     //loop over found d mesons and check for each candidate if it fulfills the decay signature together with the rest of the event
     while(dtype!=dtype_end)
@@ -1420,8 +1485,6 @@ namespace Belle {
 	    float hypDMass2=-1;
 
 	    ////----
-
-
 
 	    double dCharge=(*itD)->charge();
 	    //	    cout <<"dcharge: " << dCharge <<endl;
@@ -1492,9 +1555,9 @@ namespace Belle {
 		leptonCharge=leptonCandidates[0]->charge();
 	      }
 	    int numPions=localPiCandidates.size();
+	    //	    cout <<"having " << numPions <<endl;
 
-
-	    HepLorentzVector pionMom;
+	    HepLorentzVector pionMom(0.0,0.0,0.0,0.0);
 	    for(int i=0;i<numPions;i++)
 	      {
 		if(i==0)
@@ -1525,7 +1588,9 @@ namespace Belle {
 
 
 	    //	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0 && bestBcand.charge()==((-1)*(pionCharge+leptonCharge+dCharge));
-	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
+	    ///	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
+	    //adding zero pions
+	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0 && numPions>=0 && numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
 	  
 
 	    //	    cout <<" using pidWeight: "<< pidWeight <<" B Br weight: " << B_BR_CorrectionFactor << " D BR factor: "<< D_BR_CorrectionFactor<<endl;
@@ -1534,7 +1599,7 @@ namespace Belle {
 	    treeData.dCharge[treeData.size]=dCharge;
 
 
-	    if(recDecaySignature)
+	    if(recDecaySignature && (!(excludeSignal && sig_FoundDDoubleStar)))
 	      {
 		foundRecDecay=true;
 		if(PRINT)
@@ -1547,10 +1612,9 @@ namespace Belle {
 		float mNu2=0;		
 		float U=0;
 		HepLorentzVector bMomentum=bestBcand.p();
-		//	    cout <<"best b cand px: " << -sigBPx << " py: " << -sigBPy << " pz: "<< -sigBPz <<" e: " << sigE <<endl;
+		//		cout <<"signal bMomentum vect; "<< signalBMomentum.vect()<<endl;
 		//doesn't make sense to just flip the sign of p, since we are not in the CMS
 		//	    	    cout <<"best b m: "<< bMomentum.mag() <<endl;
-
 
 		HepLorentzVector Pxl;
 		if(leptonCandidates.size()>0)
@@ -1569,7 +1633,26 @@ namespace Belle {
 		treeData.mDnPi[treeData.size]=(D.p()+pionMom).mag();
 		treeData.dDecay[treeData.size]=pinf.decayChannel;
 		treeData.dType[treeData.size]=pinf.type;
+		//recoil is computed wrt to signal b, so we have to flip the momentum. However, we need the 'real' D from MC (so D** if it is a D** event). Note 
+		//that we are only looking at Dlnu events (with D =D(*) or D** 
+		//		treeData.w[treeData.size]=
 
+
+		//FF weight is dependent on q2, and p_l* (momentum of the lepton in the B CMS system) for the D(*) l nu
+		// for D** l nu in w and cos(theta_l)
+
+		//		HepLorentzVector p_W = p_l + p_nu;
+		//		p_l.boost(-(p_W.boostVector()));
+		//		p_D.boost(-(p_W.boostVector()));
+		//		float cosTheta = cos( p_l.p3().angle( p_D.p3() ) );
+
+		//		cout <<" b t comp:  " << signalBMomentum.t() <<" D time; "<< D.p().t() <<" D vect: "<< D.p().vect()<<endl;
+		//		cout <<" w is: "<< D.p().dot(signalBMomentum)<<" with tag: "<< D.p().dot(bMomentum)<<endl;
+		
+
+		//q2 =(p_l+p_\nu)^2
+		//		cout <<"or  w is: "<< D.p().t()*signalBMomentum.t()-D.p().vect().dot(signalBMomentum.vect())<<" with tag: "<< D.p().dot(bMomentum)<<endl;
+				
 		if(leptonCandidates.size()>0)
 		  {
 		    treeData.leptonMom[treeData.size]=leptonCandidates[0]->p().vect().mag();
@@ -1620,7 +1703,7 @@ namespace Belle {
 		    bestDIndex=treeData.size;
 		  }
 
-		///best selection based on D Diff
+		///best selection based on D Diff;
 		//because it was already incremented
 		DType tmpDtype=(DType)((int)dtype-1);
 		if(numPions==1 && tmpDtype!=dtype_DStar)
@@ -1775,11 +1858,15 @@ namespace Belle {
 		      {
 			cout <<"small nu but did not find any" <<endl;
 		      }
-		  }
+		  }///end of PRINT
+		////////---------
+		///////////////////
+
 		if(tmpDtype==dtype_DStar)
 		  treeData.DStarDiff[treeData.size]=pinf.pdgDiff;
 		else
 		  treeData.DDiff[treeData.size]=pinf.pdgDiff;
+
 		treeData.recDType[treeData.size]=dtype;
 		//		cout <<"mNu: " << mNu <<endl;
 		//		cout <<"lepton mass: "<< leptonCandidates[0]->p().mag()<<endl;
@@ -1860,6 +1947,7 @@ namespace Belle {
 			  }
 		      }
 		    bool tmp;
+		    bool tmp2;
 		    int iTmp;
 	    
 	    
@@ -1871,7 +1959,7 @@ namespace Belle {
 		    if(PRINT)
 		      {
 			cout <<"check print: " <<endl;
-			checkForDPiPi(iTmp,tmp, true);
+			checkForDPiPi(iTmp,tmp, tmp2,true);
 		      }
 		    if(PRINT)
 		      cout <<"printing out b decay products: "<< endl;
@@ -1950,17 +2038,17 @@ namespace Belle {
 		      cout <<" mNu 4-vector: "<< mNu4.px() <<" " << mNu4.py() << " " << mNu4.pz() << " " << mNu4.t() <<endl;
 		    if(PRINT)
 		      cout <<"evt: "<< evtNr <<" runNr: " << runNr <<" mNu2: " << mNu2<<endl;
-		  }
+		  } //if(mNu2<0.1)
 		
 
 
 		//////////////
 
 		
-	      }
+	      } ///if recDecaySignature
 
-	  }
-      }
+	  }/// for all Ds
+      } ///for all DTypes
   
     /////--->Don't select best D based on mNu2 (bias), instead using best Ds (separately for n12, D and DStar
     bool singlePionEvent=false;
@@ -2018,7 +2106,7 @@ namespace Belle {
 ////      }
     treeData.recDecaySignature=foundRecDecay;
     treeData.mcDecaySignature=mcDecaySignature;
-    if(foundRecDecay || sigResDLNu || sigResDPiLNu || sigResDPiPiLNu || sigResDStarLNu || sigResDStarPiLNu || sigResDStarPiPiLNu)
+    if((foundRecDecay || sigResDLNu || sigResDPiLNu || sigResDPiPiLNu || sigResDStarLNu || sigResDStarPiLNu || sigResDStarPiPiLNu)  && (!(excludeSignal && sig_FoundDDoubleStar)))
       {
 	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
 	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
@@ -2027,11 +2115,12 @@ namespace Belle {
 	//	cout <<"indeed foundRec " <<endl;
       }
     //so as not to save twice
-    if(mcDecaySignature&& !foundRecDecay)
+    if((mcDecaySignature&& !foundRecDecay) && (!(excludeSignal && sig_FoundDDoubleStar)))
       {
 	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
 	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
 	//		cout <<"mc decay but not foundRec " <<endl;
+	
 	saveTree();
       }
     //    if(!mcDecaySignature && !foundRecDecay)
@@ -2864,7 +2953,7 @@ namespace Belle {
 
   //should maybe use the recursive method 
   //this method checks if the Dpipi decay is in the MC and also gets the BR correction factors
-  bool bToDDoubleStar::checkForDPiPi(int& bMesonId,bool& foundSinglePionDecay, bool print)
+  bool bToDDoubleStar::checkForDPiPi(int& bMesonId,bool& foundSinglePionDecay, bool& foundDlNu,bool print)
   {
     foundSinglePionDecay=false;
     overlapFractionCharged=.0;
@@ -2976,13 +3065,38 @@ namespace Belle {
 	      {
 		br_sigs[i]=0;
 	      }
-	    findDecaySignatureForBBRCorrection(*gen_it,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons, tempNumNu,br_sigs);
+
+	    HepLorentzVector p_D,p_l,p_nu;
+	    findDecaySignatureForBBRCorrection(*gen_it,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons, tempNumNu,br_sigs,p_D,p_l,p_nu);
+
+
+
+
+	    foundDDecayForFF=false;
 	    for(int i=0;i<=br_sig_D0Star0;i++)
 	      {
 		if(br_sigs[i]==1)
 		  {
+		    foundDDecayForFF=true;
 		    //		  cout <<"found D in B decay !!! " <<i << endl;
 		  }
+	      }
+	    if(foundDDecayForFF)
+	      {
+		HepLorentzVector signalBMomentum=Particle(*gen_it).p();
+		//copy of the vector to boost into B system
+		HepLorentzVector p_l2=p_l;
+		p_l2.boost(-(signalBMomentum.boostVector()));
+		ff_pL=p_l2.vect().mag();
+		w=(p_D.dot(signalBMomentum))/sqrt(p_D.dot(p_D)*signalBMomentum.dot(signalBMomentum));
+		HepLorentzVector p_W = p_l + p_nu;
+		p_l.boost(-(p_W.boostVector()));
+		p_D.boost(-(p_W.boostVector()));
+		cosTheta = cos( p_l.vect().angle( p_D.vect() ) );
+		q2 =(p_l+p_nu)*(p_l+p_nu);
+
+		//		cout <<"we have pL: "<< ff_pL <<" w: "<< w <<" cosTheta" << cosTheta <<" q2: "<< q2 <<endl;
+
 	      }
 	    ////////--
 	    //	    cout <<" get decay sig:numpions: "<< tempNumPions <<endl;
@@ -2994,8 +3108,13 @@ namespace Belle {
 	    //	    if(temp>1)
 	    //	      cout <<" found more than one D(*(*)) in the decay! " << endl;
 	  
+
+	    //implement FF corrections here, because we already determined the decay
+	    //however, we need the D, l and nu 4-momenta to compute the kinematics needed for the FF
 	    if(tempNumNu==1 && tempNumLeptons==1 && tempNumPions==0&& tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0)
 	      {
+
+
 		if( br_sigs[br_sig_D0]==1)
 		  {
 		    br_sig_D0LNu=true;
@@ -3078,8 +3197,6 @@ namespace Belle {
 		  {
 
 		    ////////
-
-
 		    ///////
 
 		    if(tempNumPions==1 || tempNumPions==2)
@@ -3484,6 +3601,16 @@ namespace Belle {
 		    //return, since we most likely won't find the two pion decay in the other B
 		    return false;
 		  }
+		if(numDaughters==3 && numGDaughters==2&& (foundD|| foundDStar) && foundL && foundNu && !foundPiPlus && !foundPiMinus && !foundSameChargePions && !(foundPiPlus && foundPiMinus))
+		  {
+		    foundDlNu=true;
+		    if(print)
+		      cout <<"foundSinglePionDecay!" <<endl;
+		    bMesonId= gen_it->get_ID();
+		    //return, since we most likely won't find the two pion decay in the other B
+		    return false;
+		  }
+
 	      }
 	    delete daughters;
 	  }
@@ -3638,74 +3765,96 @@ namespace Belle {
 
 
   //difference to the other findDecaySignature is that we don't look at the decay of the D. We are only interested to find B to B Dlnu
-  bool bToDDoubleStar::findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons, int& numNu,  int* br_Decays)
+  bool bToDDoubleStar::findDecaySignatureForBBRCorrection(const Gen_hepevt &mother,int& numLeptons, int& numPions, int& numKaons, int& numPi0, int& numBaryons, int& numNu,  int* br_Decays, HepLorentzVector& p_D, HepLorentzVector& p_l, HepLorentzVector& p_nu)
   {
     genhep_vec* daughters=getDaughters(mother);
     int lund=fabs(mother.idhep());
     if(lund==911|| lund>9000000)
       return false;
     Particle p(mother);
+    //this is a d meson we have been looking for
+    if(std::find(D_lundIds.begin(),D_lundIds.end(),lund)!=D_lundIds.end())
+      {
+	//get momentum
+	p_D=p.p();
+      }
 
+
+    
     if(lund==PY_D0)
       {
 	//cout <<"d0" <<endl;
 	br_Decays[br_sig_D0]=1;
+	lType=2;
 	return true;
       }
     if(lund==PY_D)
       {
 	//cout <<"d" <<endl;
 	br_Decays[br_sig_D]=1;
+	lType=2;
 	return true;
       }
     if(lund==PY_DStar)
       {
 	//cout <<"dstar" <<endl;
 	br_Decays[br_sig_DStar]=1;
+	lType=1;
 	return true;
       }
     if(lund==PY_DStar0)
       {
 	br_Decays[br_sig_DStar0]=1;
+	lType=1;
 	return true;
       }
+    //
     if(lund==10413)
       {
+	dssIdx=0;
 	br_Decays[br_sig_D1]=1;
 	return true;
       }
     if(PY_DStar_2==lund)
       {
+	dssIdx=1;
 	br_Decays[br_sig_D2]=1;
 	return true;
       }
     if(lund==20413)
       {
+	//I assume that this is the  D_1* from table 9 in bn1335...
+	dssIdx=3;
 	br_Decays[br_sig_D1Prime]=1;
 	return true;
       }
     if(PY_DStar0Plus==lund)
       {
+	dssIdx=2;
 	br_Decays[br_sig_D0Star]=1;
 	return true;
       }
     if(PY_D_10==lund)
       {
+	dssIdx=0;
 	br_Decays[br_sig_D10]=1;
 	return true;
       }
     if(PY_DStar_20==lund)
       {
+	dssIdx=1;
 	br_Decays[br_sig_D20]=1;
 	return true;
       }
     if(20423==lund)
       {
+	dssIdx=3;
 	br_Decays[br_sig_D1Prime0]=1;
 	return true;
       }
     if(PY_DStar_00==lund)
       {
+	dssIdx=2;
 	br_Decays[br_sig_D0Star0]=1;
 	return true;
       }
@@ -3735,12 +3884,13 @@ namespace Belle {
     if(lund==PY_E || lund==PY_Mu|| lund==PY_Tau)
       {
 	numLeptons++;
+	p_l=p.p();
 	return true;
       }
 
     if(lund==PY_NuE || lund==PY_NuMu|| lund==PY_NuTau)
       {
-
+	p_nu=p.p();
 	numNu++;
 
 	return true;
@@ -3756,7 +3906,7 @@ namespace Belle {
       }    
     for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
       {
-	findDecaySignatureForBBRCorrection(**it,numLeptons,numPions,numKaons,numPi0,numBaryons,numNu,br_Decays);
+	findDecaySignatureForBBRCorrection(**it,numLeptons,numPions,numKaons,numPi0,numBaryons,numNu,br_Decays,p_D,p_l,p_nu);
       }
   }
 
@@ -3772,7 +3922,6 @@ namespace Belle {
     if(lund==PY_DStar_00|| lund==PY_DStar0Plus|| lund==PY_DStar_0s|| lund==PY_DStar0Plus|| lund==PY_D_1 || lund==PY_D_10 || lund==PY_DStar_2 || lund==PY_DStar_20 || lund==100413 || lund == 20423 ||lund ==20413|| lund==100421 || lund==100411 || lund==100423)
       {
 	dDoubleStar=true;
-	//	cout <<"found ddouble star: "<< lund <<endl;
 	dDoubleStarId=lund;
       }
     if(lund==100421|| lund==100411)
@@ -4353,7 +4502,6 @@ namespace Belle {
 			    if(m_mc)
 			      {
 
-
 				const Mdst_charged &h_c1=pion1.mdstCharged();
 				const Mdst_charged &h_c2=pion2.mdstCharged();
 				const Mdst_charged &h_c3=pion3.mdstCharged();
@@ -4824,7 +4972,7 @@ namespace Belle {
       }
 
 
-    //D-->K-P+P+
+    //D-->K-pi+pi+
     for(vector<Particle*>::iterator itP1=chargedPiCandidates.begin();itP1!=chargedPiCandidates.end();itP1++)
       {
 	for(vector<Particle*>::iterator itP2=itP1+1;itP2!=chargedPiCandidates.end();itP2++)
@@ -5953,9 +6101,6 @@ if(gammaE1_1!=gammaE1_2)
   return gammaE1_1 > gammaE1_2;
  else
    return gammaE2_1> gammaE2_2;
-
-
-
 }
 
 

@@ -40,7 +40,7 @@ float PIDCorrections::getXSectionCorrection(bool isMC, int mcType)
  float mcXSectionUDS=2.09;
   float mcXSectionCharm=1.3;
 
- float rdXSectionBB=1.1;
+  float rdXSectionBB=1.1;
   float rdXSectionUDSC=3.3;
 
   float rdY4S_chargedBXSection=0.514;

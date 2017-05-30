@@ -33,9 +33,20 @@ MODULE=bToDDoubleStar
 HBKFILE=/dev/null
 # I put the BASF script inline like so
 basf <<EOF
+
+
+module register fix_mdst
+module register ekpfullrecon
+module register ${MODULE}
+
 path create main
+path create brecon
 path create analysis
+
 path add_module main fix_mdst
-path add_condition main >:0:analysis
+path add_condition main >:0:brecon
 path add_condition main <=:0:KILL
+path add_module brecon ekpfullrecon
+path add_condition brecon >:0:analysis
+path add_condition brecon <=:0:KILL
 path add_module analysis ${MODULE}
