@@ -1,6 +1,8 @@
 #ifndef IDX__H__
 #define IDX__H__
 
+#include "doAnalysisCombined.h"
+
 #define iNoSelection 0
 #define iContinuum 0
 #define iDDStar 1
@@ -19,7 +21,7 @@ using namespace std;
 void addCorrections(char* buffer);
 //void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dataAndMC, int numPions, bool wrongChannel=false);
 void getFeedDown(char* feedDownSelection, int channel, bool dataAndMC, int numPions);
-
+void insertSignalMCWeighting(char* buffer,  int fileIndex);
 void copyHisto(TH1* first, TH1* out, int numBins, int maxBins,int shift=0)
 {
 
@@ -174,6 +176,7 @@ void getTemplates(TH1F** summedComponents_in, TH1F** &templates, char** template
 
 //note that 'maxdatatreesize' dictates how much data we fetch (used for the partial_box)
 //get the data histogram by either summing over the four MC tree or (in the real data case) getting it from the last (data) tree
+//
 void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPions, int leptonId)
 {
   char histoName[2009];
@@ -195,7 +198,30 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
   
   char channelSelectionData[1000];
   //  char feedDownSelection[1000];
-  
+  #ifdef Huschle_Signal_Weighting
+  float mixedFactor=1.0/0.852255195;
+  float chargedFactor=1.0/0.9266338302;
+#else
+  float mixedFactor=1.0;
+  float chargedFactor=1.0;
+#endif
+  //the lumi correction should only be applied for the MC_TEST case. Otherwise we should just add the templates so we get the correct weighting (which is dependent on the trees)
+  //for now we stay with the separate data addition to have a cross-check for the template method (do we get the same number of counts as if we add up the templates?)
+  float huschleLumiFactor=mixedFactor;
+  if(channel==-1)
+    {
+      huschleLumiFactor=(mixedFactor+chargedFactor)/2;
+    }
+  if(channel>1)
+    huschleLumiFactor=chargedFactor;
+  huschleLumiFactor-=1;
+
+
+  char huschleMC_lumi_corr[1000];
+  sprintf(huschleMC_lumi_corr,"(1+foundAnyDDoubleStar*%f)*",huschleLumiFactor);
+
+
+
   // is that actually used?
     //    char channelSelectionDataAndMC[1000];
     //void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dataAndMC, int numPions)
@@ -210,24 +236,24 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	      {
 #ifdef MC_TEST
 		if(numPions==0)
-		  sprintf(buffer,"%s tagCorr*"P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		  sprintf(buffer,"%s %s tagCorr*" P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		if(numPions==1)
-		  sprintf(buffer,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		  sprintf(buffer,"%s %s tagCorr*" P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		if(numPions==2)
-		  sprintf(buffer,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		  sprintf(buffer,"%s %s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		
 #else
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s "P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s " P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		  sprintf(buffer,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		  sprintf(buffer,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 #endif
 	      }
@@ -235,17 +261,17 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	      {
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s "P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s tagCorr*" P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId, channelSelectionData);
-				  //		  sprintf(buffer,"%s "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId, channelSelectionData);
+		    sprintf(buffer,"%s tagCorr*" P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId, channelSelectionData);
+				  //		  sprintf(buffer,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut,lowerCut,numPions,leptonId, channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		    sprintf(buffer,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
-				  //		  sprintf(buffer,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut,numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+				  //		  sprintf(buffer,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut,numPions,leptonId,channelSelectionData);
 		  }
 	      }
 		  //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
@@ -258,54 +284,55 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 #ifdef MC_TEST
 		if(numPions==0)
 		  {
-		   		    sprintf(buffer,"%s tagCorr*"P0STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
-				    //		    sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s %s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+				    //		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		   		    sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
-				    //		    sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s %s tagCorr*" P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+				    //		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		    sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s %s tagCorr*(" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",huschleMC_lumi_corr,corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 #else
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s "P0STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		  sprintf(buffer,"%s ("P2STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		  sprintf(buffer,"%s (" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 #endif
-	      }
+	}
 	    else
 	      {
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s tagCorr*"P0STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
-		    //		    sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
+		    sprintf(buffer,"%s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
+		    //		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
-		    //		    sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
+		    sprintf(buffer,"%s tagCorr*" P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
+		    //		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions, channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		    		    sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
-				    //		    sprintf(buffer,"%s ("P2STRING"  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    		    sprintf(buffer,"%s tagCorr*(" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+				    //		    sprintf(buffer,"%s (" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 	      }
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
-	  }
+    }
 
+  char bufferTmp[500];
     cout <<" treeCount: " << treeCount <<endl;
     for(int tc=0;tc<treeCount;tc++)
       {
@@ -320,7 +347,16 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	int counts=0;
 	if(!dataTree)
 	  {
-	    counts=trees[tc]->Draw(drawCommand,(char*)buffer);
+
+	    //add the huschle factor for the mixed and charged trees
+	    if(tc<2)
+	      {
+		//don't want to insert the fractions permanently
+		sprintf(bufferTmp,"%s",buffer);
+		insertSignalMCWeighting(bufferTmp,tc);
+		cout <<"after inserting, using: " << bufferTmp <<endl;
+	      }
+	    counts=trees[tc]->Draw(drawCommand,(char*)bufferTmp);
 	  }
 	else
 	  {

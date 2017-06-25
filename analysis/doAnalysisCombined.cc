@@ -27,7 +27,6 @@
 
 
 #include "TFractionFitter.h"
-
 #include "doAnalysisCombined.h"
 
 using namespace std;
@@ -55,17 +54,16 @@ const int gl_numFiles=4;
 int main(int argc, char** argv)
 {
 
-	  	  bool doSBComp=false;
-  //	    bool doSBComp=true;
-
 #ifdef DPiPi_SEARCH
   SIG_IDX= SIG_IDX_D_PI_PI;
 #else
   SIG_IDX =SIG_IDX_D_PI;
 #endif
-
-
-
+  bool doSBComp=false;
+  //  bool doSBComp=true;
+  //remember that partial_box changes bins, so have to rerun in between
+  //      int loadFromFile=false;
+          int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -191,9 +189,7 @@ int main(int argc, char** argv)
   if(numPions==0)
     pionIndex=2;
 
-  //remember that partial_box changes bins, so have to rerun in between
-    int loadFromFile=false;
-    //int loadFromFile=true;
+
   TFile* mF=0;
   char filename[200];
   sprintf(filename,"myFile_numPions%d.root",numPions);
@@ -393,14 +389,22 @@ int main(int argc, char** argv)
 	    addNoise=false;
 #else
 	  bool dataTree=false;
-	  	  bool addNoise=true;
-	  //	  	  bool addNoise=false;
+	  bool addNoise=true;
 #endif
 #endif
 #endif
 	  if(iC<4)
 	    {
-	      getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);
+
+	      //should just add up template, but do the adding for now to x-check that we get the same
+	      //	      if(!dataTree)
+		{
+
+		}
+		//	      else
+		{
+		getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);
+	      }
 	    }
 	  else
 	    {

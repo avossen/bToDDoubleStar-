@@ -44,6 +44,7 @@ double gl_templateScaleFactor;
 //#define P2STRING "recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb  > -3.0  && mDnPi < 3.0 "
 //&& !(dType==0 && dDecay==1) && !(dType==1 && dDecay==3) && !(dType==2 && dDecay==1) 
 
+#include "Fit/Fitter.h"
 #include <math.h>
 #include "TRandom3.h"
 #include "TLegend.h"
@@ -141,7 +142,7 @@ bool withLumiCorrection;
 bool withBCorrection;
 bool withDCorrection;
 bool withFFCorrection;
-float getFitSignal(TFractionFitter* &fit1, TFractionFitter* &fit2, TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
+float getFitSignal(TFractionFitter* &fit1, TFractionFitter* &fit2, TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals,double* allFitErrs, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
 void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,double signalFraction, int fixThresholdCounts,int numPions);
 void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
 void addPoissonNoise(TH1F* h);
@@ -152,7 +153,9 @@ TColor* glColorTable[20];
 //just to split some stuff off
 #include "idx.h"
 
-void insertSignalMCWeighting(char* buffer, int component, int fileIndex)
+
+//insert Huschle signal weighting. This assumes that the 'foundDDoubleStarFlag' is correct
+void insertSignalMCWeighting(char* buffer,  int fileIndex)
 {
 #ifdef Huschle_Signal_Weighting
   float mixedFactor=1.0/0.852255195;
@@ -161,24 +164,26 @@ void insertSignalMCWeighting(char* buffer, int component, int fileIndex)
   float mixedFactor=1.0;
   float chargedFactor=1.0;
 #endif
-
+  //this is to make it compatible with the 1+foundAnyDDoubleStar...
+  mixedFactor-=1.0;
+  chargedFactor-=1.0;
   char tmpBuffer[1000];
   cout <<"getting buffer: " << buffer <<endl;
   //iF==0 -->mixed, iF==1 --> charged
-
+  //  sprintf(huschleMC_lumi_corr,"(1+foundAnyDDoubleStar*%f)*",huschleLumiFactor);
   //is this one of the DDStar channels?
-  if(component==iDDStar || component==iDDStarPi || component==iDDStarPiPi || component==iDDStarPiWrongChannel|| component==iDDStarPiCrossFeed) 
+  //  if(component==iDDStar || component==iDDStarPi || component==iDDStarPiPi || component==iDDStarPiWrongChannel|| component==iDDStarPiCrossFeed) 
     {
       //mixed
       if(fileIndex==0)
 	{
 	  sprintf(tmpBuffer,"%s",buffer);
-	  sprintf(buffer,"%f* %s",mixedFactor,tmpBuffer);
+	  sprintf(buffer,"(1+foundAnyDDoubleStar*%f)* %s",mixedFactor,tmpBuffer);
 	}
       if(fileIndex==1)
 	{
 	  sprintf(tmpBuffer,"%s",buffer);
-	  sprintf(buffer,"%f* %s",chargedFactor,tmpBuffer);
+	  sprintf(buffer,"(1+foundAnyDDoubleStar*%f)* %s",chargedFactor,tmpBuffer);
 	}
 
     }
@@ -668,7 +673,8 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   //probably doesn't make sense to have different thresholds for partial_box because these are the counts of the templates
   int fixThresholdCounts=100;
 #else
-  int fixThresholdCounts=300;
+  //  int fixThresholdCounts=300;
+  int fixThresholdCounts=3000;
   if(numPions==0)
     fixThresholdCounts=400;
 
@@ -680,7 +686,25 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   TH1F** templates;
   //given to 'getTemplates' as reference
   int numMergers=0;
+
+  //test here if the number of counts before and after is teh same
+  float templateIntegral=0;
+  int numTemplateEntries=0;
+  for(int i=0;i<numComponents;i++)
+    {
+      templateIntegral+=summedComponents[i]->Integral();
+      numTemplateEntries+=summedComponents[i]->GetEntries();
+    }
+  cout <<"template integral before summing combining: "<< templateIntegral<<", entries: "<< numTemplateEntries<<endl;
   getTemplates(summedComponents, templates, templateLegendNames, allLegendNames, numComponents, numMergers,numPions, oneIdx,combineDPiPi);
+  templateIntegral=0;
+  numTemplateEntries=0;
+  for(int i=0;i<numComponents-numMergers;i++)
+    {
+      templateIntegral+=templates[i]->Integral();
+      numTemplateEntries+=summedComponents[i]->GetEntries();
+    }
+  cout <<"and after combining: "<< templateIntegral<<", entries: "<< numTemplateEntries<< endl;
   cout <<"did set up " << numComponents-numMergers << " templates" <<endl;
 
   //to save counts so we can fix the components which have too little counts
@@ -707,12 +731,14 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   double fitVal, fitErr;
   cout<<"trying usual fit function: " << endl;
   double* allFitVals=new double[numComponents-numMergers];
+  double* allFitErrs=new double[numComponents-numMergers];
   int numEffective=0;
   //shouldn't this be the main fit? Or is there another fit by hand later on
   TFractionFitter* _fit, *_fit2;
   vector<int> _effectiveComponentsIndices;
   int _status=0;
-  double S=getFitSignal(_fit,_fit2,data,templates,numComponents-numMergers, fitVal, fitErr, fixThresholdCounts,allFitVals, numEffective,_effectiveComponentsIndices,_status, numPions);  
+  cout <<"data integral first: "<< data->Integral() <<" data entries: "<< data->GetEntries()<<endl;
+  double S=getFitSignal(_fit,_fit2,data,templates,numComponents-numMergers, fitVal, fitErr, fixThresholdCounts,allFitVals, allFitErrs, numEffective,_effectiveComponentsIndices,_status, numPions);  
   float sumOfFractions=0.0;
   cout <<"numEffective: "<< numEffective <<endl;
   for(int l=0;l<numEffective;l++)
@@ -724,6 +750,9 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
       sumOfFractions+=temp;
 
     }
+
+
+  //  float signalFraction=templates[SIG_IDX]/data->Integral();
   cout <<"sum of fractions1: " << sumOfFractions <<endl;
   cout <<"got " << fitVal*data->Integral() << " signal counts, fraction: " << fitVal << " +- " << fitErr  << endl;
   /////-----------------
@@ -735,7 +764,7 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
       //-->do this in the 'performFractionFit... function'
       for(int nIt=0;nIt<400;nIt++)
 	{
-	  performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls,fitVal, fixThresholdCounts, numPions);
+	  performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls,signalFraction, fixThresholdCounts, numPions);
 	}
     }
   /////////-----------
@@ -764,7 +793,7 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
     //and do this for all parameters:
     sprintf(buffer,"fracFitComp_numPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelString);
     THStack* predComponents=new THStack(buffer,buffer);
-    cout <<"fraction fitter has " << _fit->GetFitter()->GetNumberFreeParameters() << " free and " << _fit->GetFitter()->GetNumberTotalParameters() <<" overall parameters" <<endl;
+    //    cout <<"fraction fitter has " << _fit->GetFitter()->GetNumberFreeParameters() << " free and " << _fit->GetFitter()->GetNumberTotalParameters() <<" overall parameters" <<endl;
     //we want to flip the signal (index =2 ) so that it is later
     int signalIdx=-1;
     
@@ -833,7 +862,8 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 	//	legend->AddEntry(mcComp,templateLegendNames[SIG_IDX],"f" );
 
 	cout <<"mcPred is: "<< mcPredInt <<endl;
-	double fitFraction=_fit->GetFitter()->GetParameter(signalIdx);
+	double fitFraction,fitUncert;
+	_fit->GetResult(signalIdx,fitFraction,fitUncert);
 	double fitFraction2=allFitVals[signalIdx];
 	cout <<"compare the two fractions: " << fitFraction <<" to : " << fitFraction2 <<endl;
 	cout <<"we still need "<< 1.0-totalFraction <<" of the data and have " << fitFraction<< " so missing " << 1.0-totalFraction-fitFraction <<endl;
@@ -924,7 +954,6 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
     c.SaveAs(buffer);
     sprintf(buffer,"predComp_numPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelString);
     c.SaveAs(buffer);
-  
   }
 }
   ////
@@ -1190,17 +1219,17 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
     {
       if(numPions==0)
 	{
-	  sprintf(buffer,"%s  tagCorr*"P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
-		//	  sprintf(buffer,"%s  "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	  sprintf(buffer,"%s  tagCorr*" P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		//	  sprintf(buffer,"%s  " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 	}
       if(numPions==1)
 	{
-	  sprintf(buffer,"%s  tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
-		//	  sprintf(buffer,"%s  "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	  sprintf(buffer,"%s  tagCorr*" P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		//	  sprintf(buffer,"%s  " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 	}
       if(numPions==2)
 	{
-	  sprintf(buffer,"%s  tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	  sprintf(buffer,"%s  tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 	}
 	    //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d  ",numPions,leptonId);
     }
@@ -1208,17 +1237,17 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
     {
       if(numPions==0)
 	{	
-	  sprintf(buffer,"%s tagCorr*"P0STRING"  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
-		  //	  sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	  sprintf(buffer,"%s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		  //	  sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 	}
       if(numPions==1)
 	{	
-	  sprintf(buffer,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
-		  //	  sprintf(buffer,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	  sprintf(buffer,"%s tagCorr*" P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		  //	  sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 	}
       if(numPions==2)
 	{
-	  sprintf(buffer,"%s tagCorr*("P2STRING"  && bestBCharge==((-1)*systemCharge) && %s",corrBuffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	  sprintf(buffer,"%s tagCorr*(" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s",corrBuffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 	}
       //sprintf(buffer,"tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",numPions);
     }
@@ -1274,9 +1303,7 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 
 
   sprintf(bufferDPilNu,"%s && sig_DPiLNu&& !sig_DLNu  )",buffer);
-
   sprintf(bufferDPiPilNu,"%s && sig_DPiPiLNu && !sig_DLNu && !sig_DPiLNu)",buffer);
-
   sprintf(bufferDStarlNu,"%s &&  sig_DStarLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu)",buffer);
   sprintf(bufferDStarPilNu,"%s  && sig_DStarPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu)",buffer);
   sprintf(bufferDStarPiPilNu,"%s  && sig_DStarPiPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu)",buffer);
@@ -1287,7 +1314,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   sprintf(bufferNoSelection,"%s)",buffer);
       //sprintf(bufferNoSelection,"%s)",bufferAll);
   //    sprintf(bufferAll,"%s)",buffer);
-
   cout <<"selection for DDstar: "<< bufferDDStar <<endl<<" DDstarPi: "<< bufferDDStarPi<<endl<< " DDstarPiPi: "<< bufferDDStarPiPi <<endl;
   cout <<" DlNu: " << bufferDlNu<<endl <<" DPilNu:"<< bufferDPilNu << endl << " DPiPilNu: "<< bufferDPiPilNu <<endl;
   cout <<" all: "<< bufferAll <<endl;
@@ -1335,7 +1361,8 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 	{
 	  char currentSelection[1000];
 	  sprintf(currentSelection,"%s",selections[b]);
-	  insertSignalMCWeighting(currentSelection, b,iF);
+	  //	  insertSignalMCWeighting(currentSelection, b,iF);
+	  insertSignalMCWeighting(currentSelection,iF);
 	  cout <<"b: "<< b << endl;
 	  cout <<"creating histo independently " << endl;
 	  sprintf(histoName,"histo_If_%d_b_%d_numPions_%d_leptonId_%d_%s",iF,b,numPions,leptonId,channelString);
@@ -1348,8 +1375,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 	  ///need to add weighting for signal MC
 
 	  ////
-
-
 	  int counts=trees[iF]->Draw(drawCommand,(char*)currentSelection);
 	  if(b>0)
 	    allCounts+=counts;
@@ -1357,7 +1382,7 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
 	    noSelCounts=counts;
 	    if(b==10)
 	  //	  if(b==9)
-	    cout <<"all counts so far: "<< allCounts <<" no selection counts: "<< noSelCounts <<" difference: "<< noSelCounts-allCounts <<endl;
+	      cout <<"all counts so far: "<< allCounts <<" no selection counts: "<< noSelCounts <<" difference: "<< noSelCounts-allCounts <<endl;
 	  cout <<"got " << counts <<" counts selected " <<endl;
 	  //do we have to clone this before we can return the histo?
 	  TH1F* result=(TH1F*)gDirectory->Get(histoName);
@@ -1696,8 +1721,10 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   float mixedFactor=1.0;
   float chargedFactor=1.0;
 #endif
-
   float huschleLumiFactor=mixedFactor;
+  if(channel==-1)//for all, should probably take the mean
+    huschleLumiFactor=(mixedFactor+chargedFactor)/2;
+
   if(channel>1)
     huschleLumiFactor=chargedFactor;
   huschleLumiFactor-=1;
@@ -1747,17 +1774,17 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
     {
       if(numPions==0)
 	{
-	  sprintf(upperSBSelection,"%s tagCorr*"P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
-	  //	sprintf(upperSBSelection,"%s "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	  sprintf(upperSBSelection,"%s tagCorr*" P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	  //	sprintf(upperSBSelection,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
 	}
       if(numPions==1)
 	{
-	  sprintf(upperSBSelection,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
-	  //	sprintf(upperSBSelection,"%s "P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	  sprintf(upperSBSelection,"%s tagCorr*" P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	  //	sprintf(upperSBSelection,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
 	}
       if(numPions==2)
 	{
-	sprintf(upperSBSelection,"%s tagCorr*("P2STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	sprintf(upperSBSelection,"%s tagCorr*(" P2STRING "&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
 	}
 
       if(numPions==0)
@@ -1765,53 +1792,53 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
       if(numPions==1)
 	sprintf(upperSBSelectionData,P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  && %s)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
       if(numPions==2)
-	sprintf(upperSBSelectionData," ("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
+	sprintf(upperSBSelectionData," (" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ", upperSidebandTop,upperSidebandBottom,numPions,leptonId, channelSelectionData);
      
       if(numPions==0)	
-	sprintf(lowerSBSelection,"%s tagCorr*"P0STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);	
+	sprintf(lowerSBSelection,"%s tagCorr*" P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);	
       if(numPions==1)	
-	sprintf(lowerSBSelection,"%s tagCorr*"P1STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);	
+	sprintf(lowerSBSelection,"%s tagCorr*" P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);	
       if(numPions==2)
-	sprintf(lowerSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
+	sprintf(lowerSBSelection,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
 
       if(numPions==0)
 	sprintf(lowerSBSelectionData,P0STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
       if(numPions==1)
 	sprintf(lowerSBSelectionData,P1STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
       if(numPions==2)
-	sprintf(lowerSBSelectionData," ("P2STRING"&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
+	sprintf(lowerSBSelectionData," (" P2STRING "&& bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",lowerSidebandTop,lowerSidebandBottom,numPions,leptonId, channelSelectionData);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
       if(numPions==0)
-	sprintf(upperSBSelection,"%s tagCorr*"P0STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelection,"%s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(upperSBSelection,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelection,"%s tagCorr*" P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-	sprintf(upperSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelection,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
 
       if(numPions==0)
-	sprintf(upperSBSelectionData,"%s "P0STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(upperSBSelectionData,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-	sprintf(upperSBSelectionData,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
         
       if(numPions==0)
-	sprintf(lowerSBSelection,"%s tagCorr*"P0STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelection,"%s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(lowerSBSelection,"%s tagCorr*"P1STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelection,"%s tagCorr*" P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-      sprintf(lowerSBSelection,"%s tagCorr*("P2STRING" && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+      sprintf(lowerSBSelection,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
 
       if(numPions==0)
-	sprintf(lowerSBSelectionData,"%s "P0STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(lowerSBSelectionData,"%s "P1STRING"  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-	sprintf(lowerSBSelectionData,"%s ("P2STRING" && bestBCharge==((-1)*systemCharge) && %s ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && %s ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
 
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
@@ -1875,65 +1902,65 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId,  int num
     {
 
       if(numPions==0)
-	sprintf(sameChargeSelection,"%s tagCorr*"P0STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*" P0STRING " && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==1)
-	sprintf(sameChargeSelection,"%s tagCorr*"P1STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*" P1STRING " && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==2)
-	sprintf(sameChargeSelection,"%s tagCorr*("P2STRING"&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*(" P2STRING "&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       
       if(numPions==0)
-	sprintf(sameChargeSelection,"%s tagCorr*"P0STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*" P0STRING " && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==1)
-        sprintf(chargeNeutralSelection,"%s tagCorr*"P1STRING" && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+        sprintf(chargeNeutralSelection,"%s tagCorr*" P1STRING " && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==2)
-        sprintf(chargeNeutralSelection,"%s tagCorr*("P2STRING"&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+        sprintf(chargeNeutralSelection,"%s tagCorr*(" P2STRING "&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 
       if(numPions==0)
-	sprintf(sameChargeSelectionData," "P0STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelectionData," " P0STRING " && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==1)
-	sprintf(sameChargeSelectionData," "P1STRING" && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+	sprintf(sameChargeSelectionData," " P1STRING " && bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==2)
-      sprintf(sameChargeSelectionData," ("P2STRING"&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+      sprintf(sameChargeSelectionData," (" P2STRING "&& bestBCharge==systemCharge  && abs(bestBCharge)==1 && abs(leptonId)==%d && %s)  ", upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       
       if(numPions==0)
-        sprintf(chargeNeutralSelectionData," "P0STRING" && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+        sprintf(chargeNeutralSelectionData," " P0STRING " && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==1)
-        sprintf(chargeNeutralSelectionData," "P1STRING" && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+        sprintf(chargeNeutralSelectionData," " P1STRING " && bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       if(numPions==2)
-        sprintf(chargeNeutralSelectionData," ("P2STRING"&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+        sprintf(chargeNeutralSelectionData," (" P2STRING "&& bestBCharge!=systemCharge  && ((bestBCharge==0) || (systemCharge==0)) && abs(leptonId)==%d && %s)  ",upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d)  ",numPions,leptonId);
 	    
     }
   else
     {
       if(numPions==0)
-	sprintf(sameChargeSelection,"%s tagCorr*"P0STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*" P0STRING "  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==1)
-	sprintf(sameChargeSelection,"%s tagCorr*"P1STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*" P1STRING "  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==2)
-	sprintf(sameChargeSelection,"%s tagCorr*("P2STRING" && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelection,"%s tagCorr*(" P2STRING " && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 
       if(numPions==0)
-	sprintf(chargeNeutralSelection,"%s tagCorr*"P0STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelection,"%s tagCorr*" P0STRING "  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==1)
-	sprintf(chargeNeutralSelection,"%s tagCorr*"P1STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelection,"%s tagCorr*" P1STRING "  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==2)
-	sprintf(chargeNeutralSelection,"%s tagCorr*("P2STRING" && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelection,"%s tagCorr*(" P2STRING " && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",buffer, upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 
 
       if(numPions==0)
-	sprintf(sameChargeSelectionData," "P0STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelectionData," " P0STRING "  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==1)
-	sprintf(sameChargeSelectionData," "P1STRING"  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelectionData," " P1STRING "  && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==2)
-	sprintf(sameChargeSelectionData," ("P2STRING" && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(sameChargeSelectionData," (" P2STRING " && bestBCharge==systemCharge && abs(bestBCharge)==1  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 
       if(numPions==0)
-	sprintf(chargeNeutralSelectionData," "P0STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelectionData," " P0STRING "  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==1)
-	sprintf(chargeNeutralSelectionData," "P1STRING"  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelectionData," " P1STRING "  && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       if(numPions==2)
-	sprintf(chargeNeutralSelectionData," ("P2STRING" && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+	sprintf(chargeNeutralSelectionData," (" P2STRING " && bestBCharge!=systemCharge && ((bestBCharge==0) || (systemCharge==0))  && %s) ",upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
   sprintf(histoName,"sameChargeMC_numPions_%d_leptonId_%d_%s",numPions,leptonId,channelString);
@@ -1997,11 +2024,13 @@ void addPoissonNoise(TH1F* h)
 	{
 	  uncert=sqrt(nv);
 	  h->SetBinContent(i,nv);
-	  h->SetBinError(i,uncert);
+	  //  h->SetBinError(i,uncert);
 	}
       else
-	h->SetBinContent(i,0);
-	h->SetBinError(i,0.0);
+	{
+	  h->SetBinContent(i,0);
+	  //	  h->SetBinError(i,0.0);
+	}
       //      cout <<"new error: "<< h->GetBinError(i) <<endl;;
     }
 }
@@ -2026,7 +2055,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
       if(templates[i]->GetEntries()>0)
       	{
 	  //get rid of the sumw2
-	  	    	  	  templates[i]->GetSumw2()->Set(0);
+	  //templates[i]->GetSumw2()->Set(0);
 			  //			  			  templates[i]->Scale(5);
 	  //	  //make the error essentially zero
 
@@ -2037,7 +2066,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 	  addPoissonNoise(templates[i]);
 	  //	  templates[i]->Scale(1000);
       	}
-      //      cout <<"template " << i <<" has " << templates[i]->Integral() <<" int and " << templates[i]->GetEntries()<<endl;
+            cout <<"template " << i <<" has " << templates[i]->Integral() <<" int and " << templates[i]->GetEntries()<<endl;
     }
   cout <<"SIG idx: " << SIG_IDX <<endl;
   float SData=templates[SIG_IDX]->Integral();
@@ -2047,18 +2076,20 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
   data->GetSumw2()->Set(0);
   //  data->Scale(0.2);
   addPoissonNoise(data);
-  float newSignalFraction=SData/(5*data->Integral());
+  float newSignalFraction=SData/(data->Integral());
   cout <<"data has " <<SData <<" counts"<<endl;
   double fitVal=0;
   double fitErr=0;
   double* allFitVals=new double[numComponents];
+  double* allFitErrs=new double[numComponents];
   int numEffective=0;
   if(SData>0)
     {
       TFractionFitter* _fit, *_fit2;
       vector<int> _effectiveComponentIndices;
       Int_t _status=0;
-      S=getFitSignal(_fit,_fit2,data,templates,numComponents, fitVal, fitErr, fixThresholdCounts,allFitVals, numEffective,_effectiveComponentIndices, _status, numPions);  
+      cout <<"data integral before fit: "<< data->Integral()<< " entries: " << data->GetEntries()<<endl;
+      S=getFitSignal(_fit,_fit2,data,templates,numComponents, fitVal, fitErr, fixThresholdCounts,allFitVals,allFitErrs, numEffective,_effectiveComponentIndices, _status, numPions);  
       cout <<"data integral: "<< data->Integral()<< " entries: " << data->GetEntries()<<endl;
       cout <<"fitVal: " << fitVal <<" fitErr: "<< fitErr <<endl;
       cout <<"S is : " << S << " fraction times data: " << data->Integral()*fitVal <<" or " << data->GetEntries()*fitVal<<endl;
@@ -2095,6 +2126,13 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
       delete templates[i];
     }
   delete templates;
+}
+
+ float getFitSignal_RooFit(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr, int fixThresholdCounts, double* allFitVals, int& numEffective,vector<int>& effectiveComponentsIndices, Int_t& status)
+{
+
+
+
 }
 
 //other fit method where we subtract all the fixed fractions from the data and just fit the remaining
@@ -2140,7 +2178,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
       double fraction=templates[effectiveComponentsIndices2[i]]->Integral()/totalIntegral2;
       sprintf(buffer,"para_2_%d",i);
       cout <<"setting " << buffer <<" to " << fraction <<endl;
-      fit2->GetFitter()->SetParameter(i,buffer,fraction,0.1,0.0,1.0);
+      ////->      fit2->GetFitter()->SetParameter(i,buffer,fraction,0.1,0.0,1.0);
     }
   Int_t status2 = fit2->Fit();               // perform the fit
   std::cout << "fit status2: " << status2 << std::endl;
@@ -2171,7 +2209,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 
 
 
-float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr, int fixThresholdCounts, double* allFitVals, int& numEffective,vector<int>& effectiveComponentsIndices, Int_t& status, int numPions)
+float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1F** templates,int numTemplates, double& fitVal, double& fitErr, int fixThresholdCounts, double* allFitVals,double* allFitErrs ,int& numEffective,vector<int>& effectiveComponentsIndices, Int_t& status, int numPions)
 {
 
   TDirectory* oldDir=gDirectory;
@@ -2314,7 +2352,8 @@ float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1
       if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
 #else
 	//the low counts in the partial_box case doesn't allow to differentiate between feed-down and other bb
-	if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+		if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+	//	if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) )//  && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
 #endif 
 
 	{
@@ -2351,8 +2390,12 @@ float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1
 	    {
 	      lowerLimit=0.5*iThFraction;
 	    }
-	  float paraUncert=0.5*iThFraction;
-	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,paraUncert,lowerLimit,upperLimit);
+	  float paraUncert=0.1*iThFraction;
+	  paraUncert=0.1; //better than above
+	  //	  paraUncert=0.;
+	  ////->	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,paraUncert,lowerLimit,upperLimit);
+	  fit->GetFitter()->Config().ParSettings(i).SetValue(iThFraction);
+	  fit->GetFitter()->Config().ParSettings(i).SetLimits(lowerLimit,upperLimit);
 	  //does the set parameter do already the same as constrain?
 	  //	  fit->Constrain(i,0.0,1.0);               // constrain fraction i to be between 0 and 1
 	}
@@ -2365,8 +2408,14 @@ float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1
 	  cout <<"fixing parameter " << i <<" ("<<templates[effectiveComponentsIndices[i]]->GetName() <<") to " << iThFraction <<endl;
 	  sprintf(buffer,"para%d",i);
 	  //	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,0.1,0.0,1.0);
-	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,0.0,0.0,1.0);
-	  fit->GetFitter()->FixParameter(i);
+	  ///-->	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,0.0,0.0,1.0);
+	  fit->GetFitter()->Config().ParSettings(i).SetValue(iThFraction);
+	  fit->GetFitter()->Config().ParSettings(i).Set(buffer,iThFraction);
+	  fit->GetFitter()->Config().ParSettings(i).SetLimits(iThFraction,iThFraction);
+	  //	  fit->GetFitter()->FixParameter(i);
+	  //instead of fix, constrain with same upper and lower bound, hopefully that is the same as fixing it...
+	  //	  fit->Constrain(i,iThFraction,iThFraction);
+	  //	  fit->GetFitter()->Constrain(i);
 	}
     }
   cout <<" sum of fractions of templates: " << sumOfFractions <<" sum of integrals: "<< sumOfIntegrals<<endl;
@@ -2392,6 +2441,7 @@ float getFitSignal(TFractionFitter* &fit, TFractionFitter* &fit2, TH1F* data,TH1
 	  cout << temp<<endl;
 	  sumFractions+=temp;
 	  allFitVals[i]=temp;
+	  allFitErrs[i]=tempErr;
 	}
       cout <<" sum of all fractions of first fit: "<< sumFractions <<endl;
     }
