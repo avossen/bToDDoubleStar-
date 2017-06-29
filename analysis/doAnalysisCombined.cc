@@ -62,8 +62,8 @@ int main(int argc, char** argv)
   bool doSBComp=false;
   //  bool doSBComp=true;
   //remember that partial_box changes bins, so have to rerun in between
-  //      int loadFromFile=false;
-          int loadFromFile=true;
+  //  int loadFromFile=false;
+               int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -206,7 +206,7 @@ int main(int argc, char** argv)
   //more just in case, pointers are cheap
   sigSignificance=new TH1D*[20];
   vector<int> channelsUnderConsideration;
-      channelsUnderConsideration.push_back(-1);
+  //      channelsUnderConsideration.push_back(-1);
   channelsUnderConsideration.push_back(0);
   channelsUnderConsideration.push_back(1);
   channelsUnderConsideration.push_back(2);
@@ -389,7 +389,8 @@ int main(int argc, char** argv)
 	    addNoise=false;
 #else
 	  bool dataTree=false;
-	  bool addNoise=true;
+	  //	  bool addNoise=true;
+	  bool addNoise=false;
 #endif
 #endif
 #endif
