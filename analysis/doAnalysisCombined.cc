@@ -18,7 +18,7 @@
 
 //This option is used when we read in 1/4th of the MC data as the data tree
 //#define MC_TEST
-
+#define GENERATE_SINGLE_STREAM
 //open box by 15%
 //#define PARTIAL_BOX
 //#define  USE_DATA
@@ -53,7 +53,12 @@ const int gl_numFiles=4;
 
 int main(int argc, char** argv)
 {
-
+  for(int i=0;i<7;i++)
+    {
+      gl_signalFraction[i]=-1;
+      gl_signalInt[i]=-1;
+      gl_dataInt[i]=-1;
+    }
 #ifdef DPiPi_SEARCH
   SIG_IDX= SIG_IDX_D_PI_PI;
 #else
@@ -62,8 +67,8 @@ int main(int argc, char** argv)
   bool doSBComp=false;
   //  bool doSBComp=true;
   //remember that partial_box changes bins, so have to rerun in between
-  //  int loadFromFile=false;
-               int loadFromFile=true;
+  //int loadFromFile=false;
+     int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -160,7 +165,7 @@ int main(int argc, char** argv)
 
   TH1F* components[11*4];
   //the allocation of the actual histograms is done in the functions
-  TH1F* summedComponents[5][3][3][20];
+  TH1F* summedComponents[7][3][3][20];
 
   TH1F** sameChargeMC=new TH1F*;
   TH1F** chargeNeutralMC=new TH1F*;
@@ -200,25 +205,26 @@ int main(int argc, char** argv)
   else
     {
       cout <<"do load .." <<endl;
-      mF=new TFile(filename);
+      //READ should be default
+      mF=new TFile(filename,"READ");
       cout <<"loading .." <<endl;
     }
   //more just in case, pointers are cheap
   sigSignificance=new TH1D*[20];
   vector<int> channelsUnderConsideration;
   //      channelsUnderConsideration.push_back(-1);
-  channelsUnderConsideration.push_back(0);
-  channelsUnderConsideration.push_back(1);
-  channelsUnderConsideration.push_back(2);
-  channelsUnderConsideration.push_back(3);
+      channelsUnderConsideration.push_back(0);
+        channelsUnderConsideration.push_back(1);
+	channelsUnderConsideration.push_back(2);
+      channelsUnderConsideration.push_back(3);
 
   // 4&5 are the combined channels where feeddown and D* are fitted simultaneously
   //since 4 needs 0&1 and 5 needs 2&3, these have to be always included
-  channelsUnderConsideration.push_back(4);
-  channelsUnderConsideration.push_back(5);
+     channelsUnderConsideration.push_back(4);
+      channelsUnderConsideration.push_back(5);
   //channel
   //    for(int iC=-1;iC<4;iC++)
-    TH1F* data[7];
+      TH1F* data[7];
   for(vector<int>::iterator it=channelsUnderConsideration.begin();it!=channelsUnderConsideration.end();it++)
     {
       cout <<"looking at channel " << (*it) <<endl;
@@ -249,7 +255,7 @@ int main(int argc, char** argv)
       char channelBuffer[500];
       getChannelString(iC,channelBuffer);
       sprintf(buffer,"significanceOf_%s",channelBuffer);
-      sigSignificance[glChannelIdx]=new TH1D(buffer,buffer,100,0,30);
+      sigSignificance[glChannelIdx]=new TH1D(buffer,buffer,100,0,40);
 		      
       cout <<"1" <<endl;
       
@@ -259,6 +265,7 @@ int main(int argc, char** argv)
 	{
 	  leptonId=leptonIds[i];
 #ifndef onlySB
+
 
 
 
@@ -296,14 +303,34 @@ int main(int argc, char** argv)
 		    DChannelIdx=3;
 		  int DStarChannelIdx=DChannelIdx+1;
 		  cout <<"combining channel, DChannelIdx: " << DChannelIdx <<endl;
+	  for(int iF=0;iF<4;iF++)
+	    {
+	      for(int b=0;b<11;b++)
+		{
+		  TH1F* result=(TH1F*)components[iF*11+b];
+		  cout <<" checking component  before combine" << result->GetName() <<" with " << result->GetNbinsX() <<", "<< result->GetBinCenter(1) <<" to " << result->GetBinCenter(result->GetNbinsX())<<endl;
+		}
+	    }
 		  combineChannels(summedComponents[DChannelIdx][i][pionIndex],summedComponents[DStarChannelIdx][i][pionIndex],summedComponents[glChannelIdx][i][pionIndex],gl_numComponents,DChannelIdx, numPions);
 		}
 	    }
+	  
+	  for(int iF=0;iF<4;iF++)
+	    {
+	      for(int b=0;b<11;b++)
+		{
+		  TH1F* result=(TH1F*)components[iF*11+b];
+		  cout <<" checking component " << result->GetName() <<" with " << result->GetNbinsX() <<", "<< result->GetBinCenter(1) <<" to " << result->GetBinCenter(result->GetNbinsX())<<endl;
+		}
+	    }
+
+
+
+
 
 	  cout <<"done loading " <<endl;
 	  if(!loadFromFile)
 	    {
-
 	      for(int j=0;j<11;j++)
 		{
 		  cout <<"saving summed C" << j << endl;
@@ -340,7 +367,10 @@ int main(int argc, char** argv)
 #endif
 
 #ifdef MC_TEST
-   gl_templateScaleFactor=0.25;
+      gl_templateScaleFactor=0.25;
+#endif
+#ifdef GENERATE_SINGLE_STREAM
+      gl_templateScaleFactor=0.2;
 #endif
 	
 	      for(int k=0;k<11;k++)
@@ -349,6 +379,8 @@ int main(int argc, char** argv)
 		  //		  summedComponents[glChannelIdx][i][pionIndex][k]->Scale(gl_templateScaleFactor);
 		}
 	    }
+
+
 
 
 	  int numComponents=11;
@@ -375,7 +407,8 @@ int main(int argc, char** argv)
 
 #ifdef USE_DATA
 	  bool dataTree=true;
-	  bool addNoise=false;
+	  //	  bool addNoise=false;
+	  bool addNoise=true;
 #else
 #ifdef PARTIAL_BOX
 	  bool dataTree=true;
@@ -389,8 +422,8 @@ int main(int argc, char** argv)
 	    addNoise=false;
 #else
 	  bool dataTree=false;
-	  //	  bool addNoise=true;
-	  bool addNoise=false;
+	  	  bool addNoise=true;
+		  //bool addNoise=false;
 #endif
 #endif
 #endif
@@ -398,13 +431,21 @@ int main(int argc, char** argv)
 	    {
 
 	      //should just add up template, but do the adding for now to x-check that we get the same
-	      //	      if(!dataTree)
+	      if(!dataTree)
 		{
-
+		  //careful!, for MC_TEST need to go into the getData routine since the signal fractions are determined there. But dataTree should be set for that
+		    getDataFromMC(data[glChannelIdx], iC, numPions, leptonId,summedComponents[glChannelIdx][i][pionIndex],numComponents);
+#ifdef GENERATE_SINGLE_STREAM
+		    data[glChannelIdx]->Scale(0.2);
+		    data[glChannelIdx]->GetSumw2()->Set(0);
+#endif
+		    //		    cout <<"data has " << data[glChannelIdx]->Integral() <<" integral " <<endl;
+		    //		    getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);		   
+		    //		    cout <<"from real data data has " << data[glChannelIdx]->Integral() <<" integral " <<endl;
 		}
-		//	      else
+	      else
 		{
-		getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);
+		    getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);		   
 	      }
 	    }
 	  else
@@ -425,6 +466,8 @@ int main(int argc, char** argv)
 	      addShiftedHistos(data[DChannelIdx],data[DStarChannelIdx],data[glChannelIdx],numBinsD,numBinsDStar);
 	      //data[glChannelIdx]=
 	    }
+
+	  ///temporary
 
 	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls);
 

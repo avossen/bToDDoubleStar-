@@ -174,6 +174,21 @@ void getTemplates(TH1F** summedComponents_in, TH1F** &templates, char** template
   //////
 }
 
+
+
+
+void getDataFromMC(TH1F* &data, int channel, int numPions, int leptonId, TH1F** summedComponents, int numComponents)
+{
+  char channelString[1000];
+  char histoName[2009];
+  getChannelString(channel,channelString);
+  sprintf(histoName,"histo_Data_%d_pions_%d_leptonId_treeNr%d_%s",numPions,leptonId,0, channelString);
+  data=(TH1F*) summedComponents[0]->Clone(histoName);
+   for(int i=1;i<numComponents;i++)
+     {
+       data->Add(summedComponents[i]);
+     }
+}
 //note that 'maxdatatreesize' dictates how much data we fetch (used for the partial_box)
 //get the data histogram by either summing over the four MC tree or (in the real data case) getting it from the last (data) tree
 //
@@ -219,8 +234,6 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 
   char huschleMC_lumi_corr[1000];
   sprintf(huschleMC_lumi_corr,"(1+foundAnyDDoubleStar*%f)*",huschleLumiFactor);
-
-
 
   // is that actually used?
     //    char channelSelectionDataAndMC[1000];
@@ -347,7 +360,6 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	int counts=0;
 	if(!dataTree)
 	  {
-
 	    //add the huschle factor for the mixed and charged trees
 	    if(tc<2)
 	      {
@@ -372,8 +384,28 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	data->Sumw2();
 	data->SetFillColor(glColorTable[0]->GetNumber());	
       }
-    cout <<"before return, integral: "<< data->Integral() <<endl;
 
+    cout <<"before return, integral: "<< data->Integral() <<endl;
+#ifdef GENERATE_SINGLE_STREAM
+    data->Scale(0.2);
+    data->GetSumw2()->Set(0);
+    cout <<"generate single stream, scale and remove sumw2 return, integral: "<< data->Integral() <<endl;
+#endif
+    //need to get signal fraction from MC
+
+#ifdef MC_TEST
+    cout <<"getting signal fraction for mc_test  with string: "<< gl_signalSelection << endl;
+    //the data tree
+    sprintf(histoName,"signalHisto");
+    //    TH1D* sigHisto=new TH1D(histoName,histoName,numBins[channelIdx],lowerCut[channelIdx],upperCut[channelIdx]);
+    sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBins[channelIdx],lowerCut[channelIdx],upperCut[channelIdx]);
+    int sigCounts=trees[4]->Draw(drawCommand,gl_signalSelection,"");
+    TH1F* sigHisto=(TH1F*)gDirectory->Get(histoName);
+    cout <<"got " << sigCounts <<" signal Counts, integral: "<< sigHisto->Integral() << " signal fraction: "<< sigHisto->Integral()/data->Integral()<<endl;
+    gl_signalFraction[channelIdx]=sigHisto->Integral()/data->Integral();
+    gl_dataInt[channelIdx]=data->Integral();
+    gl_signalInt[channelIdx]=sigHisto->Integral();
+#endif
 }
 
 #endif
