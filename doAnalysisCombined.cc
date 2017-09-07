@@ -18,11 +18,13 @@
 
 //This option is used when we read in 1/4th of the MC data as the data tree
 //#define MC_TEST
-
+//#define GENERATE_SINGLE_STREAM
 //open box by 15%
-//#define PARTIAL_BOX
+#define PARTIAL_BOX
 //#define  USE_DATA
 
+
+//of course need to set doSBComb as well...
 //#define onlySB
 
 
@@ -53,17 +55,24 @@ const int gl_numFiles=4;
 
 int main(int argc, char** argv)
 {
-
+  for(int i=0;i<7;i++)
+    {
+      gl_xFeedFraction[i]=-1;
+      gl_signalFraction[i]=-1;
+      gl_signalInt[i]=-1;
+      gl_xFeedInt[i]=-1;
+      gl_dataInt[i]=-1;
+    }
 #ifdef DPiPi_SEARCH
   SIG_IDX= SIG_IDX_D_PI_PI;
 #else
   SIG_IDX =SIG_IDX_D_PI;
 #endif
-  bool doSBComp=false;
-  //  bool doSBComp=true;
+      bool doSBComp=false;
+  //      bool doSBComp=true;
   //remember that partial_box changes bins, so have to rerun in between
-      int loadFromFile=false;
-  //    int loadFromFile=true;
+      //                     int loadFromFile=false;
+      int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -125,6 +134,7 @@ int main(int argc, char** argv)
   //4th tree is the data tree
   int dataTreeSize=trees[4]->GetEntries();
   maxDataTreeSize=dataTreeSize;
+  totalTreeSize=dataTreeSize;
 #ifdef PARTIAL_BOX
   maxDataTreeSize=partialBoxFraction*maxDataTreeSize;
 #endif
@@ -160,7 +170,7 @@ int main(int argc, char** argv)
 
   TH1F* components[11*4];
   //the allocation of the actual histograms is done in the functions
-  TH1F* summedComponents[5][3][3][20];
+  TH1F* summedComponents[7][3][3][20];
 
   TH1F** sameChargeMC=new TH1F*;
   TH1F** chargeNeutralMC=new TH1F*;
@@ -200,25 +210,26 @@ int main(int argc, char** argv)
   else
     {
       cout <<"do load .." <<endl;
-      mF=new TFile(filename);
+      //READ should be default
+      mF=new TFile(filename,"READ");
       cout <<"loading .." <<endl;
     }
   //more just in case, pointers are cheap
   sigSignificance=new TH1D*[20];
   vector<int> channelsUnderConsideration;
-      channelsUnderConsideration.push_back(-1);
-  channelsUnderConsideration.push_back(0);
-  channelsUnderConsideration.push_back(1);
-  channelsUnderConsideration.push_back(2);
-  channelsUnderConsideration.push_back(3);
+         channelsUnderConsideration.push_back(-1);
+      channelsUnderConsideration.push_back(0);
+        channelsUnderConsideration.push_back(1);
+	channelsUnderConsideration.push_back(2);
+      channelsUnderConsideration.push_back(3);
 
   // 4&5 are the combined channels where feeddown and D* are fitted simultaneously
   //since 4 needs 0&1 and 5 needs 2&3, these have to be always included
-  channelsUnderConsideration.push_back(4);
-  channelsUnderConsideration.push_back(5);
+     channelsUnderConsideration.push_back(4);
+      channelsUnderConsideration.push_back(5);
   //channel
   //    for(int iC=-1;iC<4;iC++)
-    TH1F* data[7];
+      TH1F* data[7];
   for(vector<int>::iterator it=channelsUnderConsideration.begin();it!=channelsUnderConsideration.end();it++)
     {
       cout <<"looking at channel " << (*it) <<endl;
@@ -249,19 +260,16 @@ int main(int argc, char** argv)
       char channelBuffer[500];
       getChannelString(iC,channelBuffer);
       sprintf(buffer,"significanceOf_%s",channelBuffer);
-      sigSignificance[glChannelIdx]=new TH1D(buffer,buffer,100,0,30);
+      sigSignificance[glChannelIdx]=new TH1D(buffer,buffer,100,0,40);
 		      
       cout <<"1" <<endl;
       
-      //      for(int i=0;i<3;i++)
-      	      for(int i=0;i<1;i++)      
-      //	      for(int i=1;i<3;i++)      
+      //            for(int i=0;i<3;i++)
+                  	      for(int i=0;i<1;i++)      
+      //      	      for(int i=1;i<3;i++)      
 	{
 	  leptonId=leptonIds[i];
 #ifndef onlySB
-
-
-
 	  if(!loadFromFile)
 	    {
 	      //components give the components for each file separately
@@ -296,14 +304,34 @@ int main(int argc, char** argv)
 		    DChannelIdx=3;
 		  int DStarChannelIdx=DChannelIdx+1;
 		  cout <<"combining channel, DChannelIdx: " << DChannelIdx <<endl;
+	  for(int iF=0;iF<4;iF++)
+	    {
+	      for(int b=0;b<11;b++)
+		{
+		  TH1F* result=(TH1F*)components[iF*11+b];
+		  cout <<" checking component  before combine" << result->GetName() <<" with " << result->GetNbinsX() <<", "<< result->GetBinCenter(1) <<" to " << result->GetBinCenter(result->GetNbinsX())<<endl;
+		}
+	    }
 		  combineChannels(summedComponents[DChannelIdx][i][pionIndex],summedComponents[DStarChannelIdx][i][pionIndex],summedComponents[glChannelIdx][i][pionIndex],gl_numComponents,DChannelIdx, numPions);
 		}
 	    }
+	  
+	  for(int iF=0;iF<4;iF++)
+	    {
+	      for(int b=0;b<11;b++)
+		{
+		  TH1F* result=(TH1F*)components[iF*11+b];
+		  cout <<" checking component " << result->GetName() <<" with " << result->GetNbinsX() <<", "<< result->GetBinCenter(1) <<" to " << result->GetBinCenter(result->GetNbinsX())<<endl;
+		}
+	    }
+
+
+
+
 
 	  cout <<"done loading " <<endl;
 	  if(!loadFromFile)
 	    {
-
 	      for(int j=0;j<11;j++)
 		{
 		  cout <<"saving summed C" << j << endl;
@@ -340,7 +368,10 @@ int main(int argc, char** argv)
 #endif
 
 #ifdef MC_TEST
-   gl_templateScaleFactor=0.25;
+      gl_templateScaleFactor=0.25;
+#endif
+#ifdef GENERATE_SINGLE_STREAM
+      gl_templateScaleFactor=0.2;
 #endif
 	
 	      for(int k=0;k<11;k++)
@@ -349,7 +380,6 @@ int main(int argc, char** argv)
 		  //		  summedComponents[glChannelIdx][i][pionIndex][k]->Scale(gl_templateScaleFactor);
 		}
 	    }
-
 
 	  int numComponents=11;
 	  if(isCombinedChannel)
@@ -369,27 +399,40 @@ int main(int argc, char** argv)
 	  //      fitFractions(trees,summedComponents,10, numPions,leptonId,false);
 	  sprintf(buffer,"pulls_numPions%d_%s",numPions,channelBuffer);
 	  TH1D* pulls=new TH1D(buffer,buffer,100,-3,3);
+	  sprintf(buffer,"pullsFD_numPions%d_%s",numPions,channelBuffer);
+	  TH1D* pullsFeedDown=new TH1D(buffer,buffer,100,-3,3);
 	  //this used to be 10 components... I don't understand why, I guess that meanst that the other BB was missing
 
 
 
+
+  bool dataTree=false;
+  bool addNoise=false;
+#ifdef  GENERATE_SINGLE_STREAM
+   dataTree=false;
+   addNoise=true;
+#else
+
 #ifdef USE_DATA
-	  bool dataTree=true;
-	  bool addNoise=false;
+	   dataTree=true;
+	  	   addNoise=false;
+	  //	  bool addNoise=true;
 #else
 #ifdef PARTIAL_BOX
-	  bool dataTree=true;
-	  bool addNoise=false;
+	 dataTree=true;
+	   addNoise=false;
 	  //	  bool addNoise=true;
 #else
 #ifdef MC_TEST
-	  bool dataTree=true;
-	  bool addNoise=true;
+	   dataTree=true;
+	   addNoise=true;
 	  if(numPions==0)
 	    addNoise=false;
 #else
-	  bool dataTree=false;
-	  bool addNoise=true;
+	   dataTree=false;
+	  //	  bool addNoise=true;
+	   addNoise=false;
+#endif
 #endif
 #endif
 #endif
@@ -397,13 +440,21 @@ int main(int argc, char** argv)
 	    {
 
 	      //should just add up template, but do the adding for now to x-check that we get the same
-	      //	      if(!dataTree)
+	      if(!dataTree)
 		{
-
+		  //careful!, for MC_TEST need to go into the getData routine since the signal fractions are determined there. But dataTree should be set for that
+		    getDataFromMC(data[glChannelIdx], iC, numPions, leptonId,summedComponents[glChannelIdx][i][pionIndex],numComponents);
+#ifdef GENERATE_SINGLE_STREAM
+		    data[glChannelIdx]->Scale(0.2);
+		    data[glChannelIdx]->GetSumw2()->Set(0);
+#endif
+		    //		    cout <<"data has " << data[glChannelIdx]->Integral() <<" integral " <<endl;
+		    //		    getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);		   
+		    //		    cout <<"from real data data has " << data[glChannelIdx]->Integral() <<" integral " <<endl;
 		}
-		//	      else
+	      else
 		{
-		getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);
+		    getData(data[glChannelIdx], dataTree, trees, iC, numPions, leptonId);		   
 	      }
 	    }
 	  else
@@ -425,7 +476,9 @@ int main(int argc, char** argv)
 	      //data[glChannelIdx]=
 	    }
 
-	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls);
+	  ///temporary
+
+	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls,pullsFeedDown);
 
 
 	  TCanvas cSig;
@@ -455,6 +508,16 @@ int main(int argc, char** argv)
 	  cpulls.SaveAs(buffer);
 	  sprintf(buffer,"pulls_numPions%d_%s.eps",numPions,channelBuffer);
 	  cpulls.SaveAs(buffer);
+
+	  pullsFeedDown->Draw();
+	  pullsFeedDown->Fit("gaus");
+	  pullsFeedDown->Draw();
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.png",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.pdf",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.eps",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
 #endif	  
 
 	  if(doSBComp && iC<4)
@@ -466,8 +529,20 @@ int main(int argc, char** argv)
 	      (*lowerSidebandData)->Sumw2();
 	      (*upperSidebandMC)->Sumw2();
 	      (*lowerSidebandMC)->Sumw2();
+
+
+	      char buffer2[200];
+	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(lowerSidebandTop-lowerSidebandBottom)/numBinsSB);
+	      (*lowerSidebandData)->GetYaxis()->SetTitle(buffer2);
+	      cout <<" setting y axis title to " << buffer2<<endl;
 	      (*lowerSidebandData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	      (*lowerSidebandMC)->GetYaxis()->SetTitle(buffer2);
 	      (*lowerSidebandMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+
+	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(upperSidebandTop-upperSidebandBottom)/numBinsSBTop);
+	      (*upperSidebandData)->GetYaxis()->SetTitle(buffer2);
+	      (*upperSidebandMC)->GetYaxis()->SetTitle(buffer2);
+
 	      (*upperSidebandData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 	      (*upperSidebandMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 	      (*lowerSidebandData)->SetLineWidth(2);
@@ -496,17 +571,17 @@ int main(int argc, char** argv)
 	      //5 streams vs 15% of one stream (not true for the sidebands)
 #ifdef PARTIAL_BOX
 	      //	      double scaleFactor=5*1.0/partialBoxFraction;
-	      double scaleFactor=5*1.0;
+	      double scaleFactor=0.2*1.0;
 	      scaleUpper=scaleFactor;
 	      scaleLower=scaleFactor;
 #else
 
 #ifdef MC_TEST
-	      scaleUpper=4.0;
-	      scaleLower=4.0;
+	      scaleUpper=0.25;
+	      scaleLower=0.25;
 #else
-	      scaleUpper=5.0;
-	      scaleLower=5.0;
+	      scaleUpper=0.2;
+	      scaleLower=0.2;
 #endif
 #endif
 
@@ -518,31 +593,30 @@ int main(int argc, char** argv)
 
 	      cout <<"scaleUpper: "<< scaleUpper <<" lower: "<< scaleLower <<endl;
 	   
-	      (*upperSidebandData)->Scale(scaleUpper);
-	      (*lowerSidebandData)->Scale(scaleLower);
+	      (*upperSidebandMC)->Scale(scaleUpper);
+	      (*lowerSidebandMC)->Scale(scaleLower);
 
 
 	      TCanvas c("c","c",0,0,1000,800);
 	      c.Divide(2,2);
 	      c.cd(1);
 	      //      stacks[iF]->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
-	   
-	      (*lowerSidebandMC)->Draw();
+	      (*lowerSidebandData)->Draw("E1A");	   
 	      c.Update();
-	   
-	      (*lowerSidebandData)->Draw("SAME");
+	      (*lowerSidebandMC)->Draw("hist");	   
+
 	   
 	      c.cd(2);
-	   
-	      (*upperSidebandMC)->Draw();
+
+	      (*upperSidebandData)->Draw("E1A");
 	      c.Update();
-	   
-	      (*upperSidebandData)->Draw("SAME");
+	      (*upperSidebandMC)->Draw("hist SAME");	   
+
 	      c.cd(3);
 	      TH1F* lowerSidebandMCDiv=(TH1F*)(*lowerSidebandMC)->Clone("lowerSBMCDiv");
 	      lowerSidebandMCDiv->Sumw2();
 	      lowerSidebandMCDiv->SetError(zeroErrors);
-	      (*lowerSidebandData)->SetError(zeroErrors);
+	      //	      (*lowerSidebandData)->SetError(zeroErrors);
 	      lowerSidebandMCDiv->Divide(*lowerSidebandData);
 
 	      lowerSidebandMCDiv->Draw();
@@ -552,7 +626,7 @@ int main(int argc, char** argv)
 	      TH1F* upperSidebandMCDiv=(TH1F*)(*upperSidebandMC)->Clone("upperSBMCDiv");
 	      upperSidebandMCDiv->Sumw2();
 	      upperSidebandMCDiv->SetError(zeroErrors);
-	      (*upperSidebandData)->SetError(zeroErrors);
+	      //	      (*upperSidebandData)->SetError(zeroErrors);
 	      upperSidebandMCDiv->Divide(*upperSidebandData);
 
 	      upperSidebandMCDiv->Draw();
@@ -565,9 +639,10 @@ int main(int argc, char** argv)
 	      sprintf(buffer,"SidebandComparison_NumPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      c.cd(0);
-	      (*lowerSidebandMC)->Draw();
+	      (*lowerSidebandData)->Draw("E1");
 	      c.Update();
-	      (*lowerSidebandData)->Draw("SAME");
+	      (*lowerSidebandMC)->Draw("hist SAME");
+
 	      sprintf(buffer,"LowerSidebandComparison_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"LowerSidebandComparison_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
@@ -575,9 +650,13 @@ int main(int argc, char** argv)
 	      sprintf(buffer,"LowerSidebandComparison_NumPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      c.cd(0);
-	      (*upperSidebandMC)->Draw();
+	      (*upperSidebandData)->Draw("E1");
+	      for(int i=1;i<(*upperSidebandData)->GetNbinsX();i++)
+		{
+		  cout <<"bin " << i <<" sideband data " << (*upperSidebandData)->GetBinContent(i) <<" error: "<< (*upperSidebandData)->GetBinError(i) <<endl;
+		}
 	      c.Update();
-	      (*upperSidebandData)->Draw("SAME");
+	      (*upperSidebandMC)->Draw("hist SAME");
 	      sprintf(buffer,"UpperSidebandComparison_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"UpperSidebandComparison_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
@@ -592,9 +671,14 @@ int main(int argc, char** argv)
 	      (*chargeNeutralData)->Sumw2();
 
 
+	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(upperCut[iC+1]-lowerCut[iC+1])/numBinsWS);
+	      (*sameChargeData)->GetYaxis()->SetTitle(buffer2);
 	      (*sameChargeData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	      (*sameChargeMC)->GetYaxis()->SetTitle(buffer2);
 	      (*sameChargeMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	      (*chargeNeutralData)->GetYaxis()->SetTitle(buffer2);
 	      (*chargeNeutralData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
+	      (*chargeNeutralMC)->GetYaxis()->SetTitle(buffer2);
 	      (*chargeNeutralMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 	      (*sameChargeData)->SetLineWidth(2);
 	      (*sameChargeMC)->SetLineWidth(2);
@@ -620,29 +704,30 @@ int main(int argc, char** argv)
 	      //      double scaleSameCharge=(*sameChargeMC)->GetEntries()/((double)((*sameChargeData)->GetEntries()));
 	      //      double scaleChargeNeutral=(*chargeNeutralMC)->GetEntries()/((double)((*chargeNeutralData)->GetEntries()));
 
-	      double scaleSameCharge=5.0;
-	      double scaleChargeNeutral=5.0;
+	      double scaleSameCharge=0.2;
+	      double scaleChargeNeutral=0.2;
 
 	      cout <<"scalesameCharge: "<< scaleSameCharge <<" chargeNeutral: "<< scaleChargeNeutral <<endl;
 	   
-	      (*sameChargeData)->Scale(scaleSameCharge);
-	      (*chargeNeutralData)->Scale(scaleChargeNeutral);
+	      (*sameChargeMC)->Scale(scaleSameCharge);
+	      (*chargeNeutralMC)->Scale(scaleChargeNeutral);
+	      (*sameChargeData)->Draw("E1");
 
-	      (*sameChargeMC)->Draw();
 	      c.Update();
+	      (*sameChargeMC)->Draw("hist SAME");
 	      (*chargeNeutralMC)->SetLineColor(kBlue);
 	      (*chargeNeutralData)->SetLineColor(kBlack);
-	      (*sameChargeData)->Draw("SAME");
+
 	      sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
-	   
-	      (*chargeNeutralMC)->Draw();
+	      (*chargeNeutralData)->Draw("E1");	   
+
 	      c.Update();
-	      (*chargeNeutralData)->Draw("SAME");
+	      (*chargeNeutralMC)->Draw("hist SAME");
 	      sprintf(buffer,"chargeNeutral_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"chargeNeutral_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
@@ -653,22 +738,22 @@ int main(int argc, char** argv)
 
 	      c.Divide(2,2);
 	      c.cd(1);
+	      (*sameChargeData)->Draw("E1");
 
-	      (*sameChargeMC)->Draw();
 	      c.Update();
-	   
-	      (*sameChargeData)->Draw("SAME");
+	      (*sameChargeMC)->Draw("hist SAME");	   
+
 	      c.cd(2);
 	   
-	      (*chargeNeutralMC)->Draw();
+	      (*chargeNeutralData)->Draw("E1");
 	      c.Update();
-	   
-	      (*chargeNeutralData)->Draw("SAME");
+	      (*chargeNeutralMC)->Draw("hist SAME");	   
+
 	      c.cd(3);
 	      TH1F* sameChargeMCDiv=(TH1F*)(*sameChargeMC)->Clone("sameChargeMCDiv");
 	      sameChargeMCDiv->Sumw2();
 	      sameChargeMCDiv->SetError(zeroErrors);
-	      (*sameChargeData)->SetError(zeroErrors);
+	      //	      (*sameChargeData)->SetError(zeroErrors);
 	      sameChargeMCDiv->Divide(*sameChargeData);
 
 	      sameChargeMCDiv->Draw();
@@ -678,7 +763,7 @@ int main(int argc, char** argv)
 	      TH1F* chargeNeutralMCDiv=(TH1F*)(*chargeNeutralMC)->Clone("chargeNeutralMCDiv");
 	      chargeNeutralMCDiv->Sumw2();
 	      chargeNeutralMCDiv->SetError(zeroErrors);
-	      (*chargeNeutralData)->SetError(zeroErrors);
+	      //	      (*chargeNeutralData)->SetError(zeroErrors);
 	      chargeNeutralMCDiv->Divide(*chargeNeutralData);
 
 	      chargeNeutralMCDiv->Draw();
@@ -691,11 +776,12 @@ int main(int argc, char** argv)
 	      c.SaveAs(buffer);
 	   
 	      c.cd(0);
-	      (*sameChargeMC)->Draw();
+	      (*sameChargeData)->Draw("E1");
 	      (*sameChargeMC)->SetLineColor(kBlue);
 	      (*sameChargeData)->SetLineColor(kBlack);
 	      c.Update();
-	      (*sameChargeData)->Draw("SAME");
+	      (*sameChargeMC)->Draw("hist SAME");
+
 	      sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"SameCharge_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
@@ -704,11 +790,12 @@ int main(int argc, char** argv)
 	      c.SaveAs(buffer);
 	   
 	      c.cd(0);
-	      (*chargeNeutralMC)->Draw();
+	      (*chargeNeutralData)->Draw("E1");
+
 	      (*chargeNeutralMC)->SetLineColor(kBlue);
 	      (*chargeNeutralData)->SetLineColor(kBlack);
 	      c.Update();
-	      (*chargeNeutralData)->Draw("SAME");
+	      (*chargeNeutralMC)->Draw("hist SAME");
 	      sprintf(buffer,"ChargeNeutral_NumPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelBuffer);
 	      c.SaveAs(buffer);
 	      sprintf(buffer,"ChargeNeutral_NumPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelBuffer);
