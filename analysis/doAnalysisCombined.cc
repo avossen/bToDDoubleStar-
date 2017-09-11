@@ -18,9 +18,9 @@
 
 //This option is used when we read in 1/4th of the MC data as the data tree
 //#define MC_TEST
-//#define GENERATE_SINGLE_STREAM
+#define GENERATE_SINGLE_STREAM
 //open box by 15%
-#define PARTIAL_BOX
+//#define PARTIAL_BOX
 //#define  USE_DATA
 
 
@@ -57,8 +57,10 @@ int main(int argc, char** argv)
 {
   for(int i=0;i<7;i++)
     {
+      gl_xFeedFraction[i]=-1;
       gl_signalFraction[i]=-1;
       gl_signalInt[i]=-1;
+      gl_xFeedInt[i]=-1;
       gl_dataInt[i]=-1;
     }
 #ifdef DPiPi_SEARCH
@@ -66,11 +68,11 @@ int main(int argc, char** argv)
 #else
   SIG_IDX =SIG_IDX_D_PI;
 #endif
-    bool doSBComp=false;
-    //  bool doSBComp=true;
+      bool doSBComp=false;
+  //      bool doSBComp=true;
   //remember that partial_box changes bins, so have to rerun in between
-    //           int loadFromFile=false;
-    int loadFromFile=true;
+      //                     int loadFromFile=false;
+      int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -132,6 +134,7 @@ int main(int argc, char** argv)
   //4th tree is the data tree
   int dataTreeSize=trees[4]->GetEntries();
   maxDataTreeSize=dataTreeSize;
+  totalTreeSize=dataTreeSize;
 #ifdef PARTIAL_BOX
   maxDataTreeSize=partialBoxFraction*maxDataTreeSize;
 #endif
@@ -214,7 +217,7 @@ int main(int argc, char** argv)
   //more just in case, pointers are cheap
   sigSignificance=new TH1D*[20];
   vector<int> channelsUnderConsideration;
-        channelsUnderConsideration.push_back(-1);
+         channelsUnderConsideration.push_back(-1);
       channelsUnderConsideration.push_back(0);
         channelsUnderConsideration.push_back(1);
 	channelsUnderConsideration.push_back(2);
@@ -261,8 +264,8 @@ int main(int argc, char** argv)
 		      
       cout <<"1" <<endl;
       
-      //      for(int i=0;i<3;i++)
-            	      for(int i=0;i<1;i++)      
+      //            for(int i=0;i<3;i++)
+                  	      for(int i=0;i<1;i++)      
       //      	      for(int i=1;i<3;i++)      
 	{
 	  leptonId=leptonIds[i];
@@ -396,6 +399,8 @@ int main(int argc, char** argv)
 	  //      fitFractions(trees,summedComponents,10, numPions,leptonId,false);
 	  sprintf(buffer,"pulls_numPions%d_%s",numPions,channelBuffer);
 	  TH1D* pulls=new TH1D(buffer,buffer,100,-3,3);
+	  sprintf(buffer,"pullsFD_numPions%d_%s",numPions,channelBuffer);
+	  TH1D* pullsFeedDown=new TH1D(buffer,buffer,100,-3,3);
 	  //this used to be 10 components... I don't understand why, I guess that meanst that the other BB was missing
 
 
@@ -406,7 +411,8 @@ int main(int argc, char** argv)
 #ifdef  GENERATE_SINGLE_STREAM
    dataTree=false;
    addNoise=true;
-#endif
+#else
+
 #ifdef USE_DATA
 	   dataTree=true;
 	  	   addNoise=false;
@@ -426,6 +432,7 @@ int main(int argc, char** argv)
 	   dataTree=false;
 	  //	  bool addNoise=true;
 	   addNoise=false;
+#endif
 #endif
 #endif
 #endif
@@ -471,7 +478,7 @@ int main(int argc, char** argv)
 
 	  ///temporary
 
-	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls);
+	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls,pullsFeedDown);
 
 
 	  TCanvas cSig;
@@ -501,6 +508,16 @@ int main(int argc, char** argv)
 	  cpulls.SaveAs(buffer);
 	  sprintf(buffer,"pulls_numPions%d_%s.eps",numPions,channelBuffer);
 	  cpulls.SaveAs(buffer);
+
+	  pullsFeedDown->Draw();
+	  pullsFeedDown->Fit("gaus");
+	  pullsFeedDown->Draw();
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.png",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.pdf",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
+	  sprintf(buffer,"pullsFeedDown_numPions%d_%s.eps",numPions,channelBuffer);
+	  cpulls.SaveAs(buffer);
 #endif	  
 
 	  if(doSBComp && iC<4)
@@ -512,7 +529,6 @@ int main(int argc, char** argv)
 	      (*lowerSidebandData)->Sumw2();
 	      (*upperSidebandMC)->Sumw2();
 	      (*lowerSidebandMC)->Sumw2();
-
 
 
 	      char buffer2[200];

@@ -195,6 +195,7 @@ void getDataFromMC(TH1F* &data, int channel, int numPions, int leptonId, TH1F** 
 void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPions, int leptonId)
 {
   char histoName[2009];
+  char xFdHistoName[2009];
   char channelString[500];
   char drawCommand[2000];
   getChannelString(channel,channelString);
@@ -378,7 +379,7 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 	else
 	  {
 	    //grab last tree which should be the data tree...
-	    counts=trees[4]->Draw(drawCommand,(char*)buffer,"",maxDataTreeSize);
+	    counts=trees[4]->Draw(drawCommand,(char*)buffer,"",maxDataTreeSize,totalTreeSize-maxDataTreeSize);
 	  }
 	cout <<"got " << counts <<" counts from data selected " <<endl;
 	if(tc==0)
@@ -402,14 +403,20 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
     cout <<"getting signal fraction for mc_test  with string: "<< gl_signalSelection << endl;
     //the data tree
     sprintf(histoName,"signalHisto");
+    sprintf(xFdHistoName,"xFdHisto");
     //    TH1D* sigHisto=new TH1D(histoName,histoName,numBins[channelIdx],lowerCut[channelIdx],upperCut[channelIdx]);
     sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBins[channelIdx],lowerCut[channelIdx],upperCut[channelIdx]);
     int sigCounts=trees[4]->Draw(drawCommand,gl_signalSelection,"");
+    sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",xFdHistoName,numBins[channelIdx],lowerCut[channelIdx],upperCut[channelIdx]);
+    int xFdCounts=trees[4]->Draw(drawCommand,gl_xFeedSelection,"");
     TH1F* sigHisto=(TH1F*)gDirectory->Get(histoName);
+    TH1F* xFdHisto=(TH1F*)gDirectory->Get(xFdHistoName);
     cout <<"got " << sigCounts <<" signal Counts, integral: "<< sigHisto->Integral() << " signal fraction: "<< sigHisto->Integral()/data->Integral()<<endl;
     gl_signalFraction[channelIdx]=sigHisto->Integral()/data->Integral();
+    gl_xFeedFraction[channelIdx]=xFdHisto->Integral()/data->Integral();
     gl_dataInt[channelIdx]=data->Integral();
     gl_signalInt[channelIdx]=sigHisto->Integral();
+    gl_xFeedInt[channelIdx]=xFdHisto->Integral();
 #endif
 }
 

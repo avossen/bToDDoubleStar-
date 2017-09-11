@@ -8,17 +8,19 @@
 
 const bool combineDPiPi=true;
 const int oneIdx=-1;
-    float upperSidebandTop=2.0;
+    float upperSidebandTop=3.5;
   //  float upperSidebandTop=3.0;
-    float upperSidebandBottom=0.7;
+    float upperSidebandBottom=2.0;
   //  float upperSidebandBottom=-1.5;
 
   float lowerSidebandTop=-0.5;
   float lowerSidebandBottom=-1.0;
 //#define DPiPi_SEARCH
 int maxDataTreeSize;
+int totalTreeSize;
 int SIG_IDX;
 #define partialBoxFraction 0.15
+
 //#define P0STRING "( recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb > -3.0 "
 //Robnin's cuts for x-check
 #define P0STRING "( recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.24  && logProb > -3.0 "
@@ -49,11 +51,15 @@ int SIG_IDX;
 double gl_templateScaleFactor;
 //hack to get the selection string to apply ot MC_Test
 char* gl_signalSelection;
+char* gl_xFeedSelection;
 double gl_signalFraction[10];
+double gl_xFeedFraction[10];
 
+double gl_xFeedInt[10];
 double gl_signalInt[10];
 double gl_dataInt[10];
 float gl_lastSignalFraction;
+float gl_lastCrossFeedFraction;
 
 //#define P2STRING "recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb  > -3.0  && mDnPi < 3.0 "
 //&& !(dType==0 && dDecay==1) && !(dType==1 && dDecay==3) && !(dType==2 && dDecay==1) 
@@ -116,9 +122,9 @@ enum selectionNames{};
 //int numBins[]={70,200,70,200,70};
 ///////--> use this, but for partial box might need less...int numBins[]={70,70,70,70,70}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
 #ifdef PARTIAL_BOX
-int numBins[]={40,10,10,10,10}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma..
+int numBins[]={40,20,30,20,20}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma..
 #else
-int numBins[]={70,70,70,70,70}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
+int numBins[]={140,140,70,140,70}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
 //int numBins[]={30,30,40,40,40}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
 //has to be the same for the channels we plan to combine
 ////-->>int numBins[]={30,40,40,40,40}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
@@ -153,7 +159,7 @@ Double_t lowerCut[]={-0.5,-0.3,-0.3,-0.3,-0.3};
 
 ///for fit stability set the upper cut a bit lower for the DStar where the counts are lower
 //--->Double_t upperCut[]={0.5,0.5,0.4,0.5,0.4};
-Double_t upperCut[]={0.7,0.7,0.6,0.7,0.6};
+Double_t upperCut[]={2.0,2.0,0.6,2.0,0.6};
 ///---->Double_t upperCut[]={0.5,0.5,0.4,0.5,0.4};
 //Double_t upperCut[]={0.2,0.2,0.2,0.2,0.2};
 //Double_t upperCut[]={0.3,0.3,0.3,0.3,0.3};
@@ -182,7 +188,7 @@ bool withFFCorrection;
 float getFitSignal( TH1F* data,TH1F** templates,int numTemplates,     TH1F* &result, TH1F** mcPredictions, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals,double* allFitErrs, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
 float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates, TH1F* &result, TH1F** mcPredictions, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals,double* allFitErrs, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
 
-void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,double signalFraction, int fixThresholdCounts,int numPions);
+void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,TH1D* pullsFeedDown,double signalFraction, double crossFeedFraction, int fixThresholdCounts,int numPions);
 void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
 void addPoissonNoise(TH1F* h);
 
@@ -392,6 +398,7 @@ void getFeedDown(char* feedDownSelection, int channel, bool dataAndMC, int numPi
 	}
     }
 }
+
 
 void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dataAndMC, int numPions, bool wrongChannel)
 {
@@ -680,7 +687,7 @@ void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dat
 get the histogram we want to fit from the tree (given numPions and leptonId), fit with the fractions from 'summedComponents'
 
  */
-void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId, int channel, bool dataTree, bool addNoise, TH1D* pulls)
+void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId, int channel, bool dataTree, bool addNoise, TH1D* pulls,TH1D* pullsFeedDown)
 {
   char channelString[500];
   getChannelString(channel,channelString);
@@ -760,7 +767,13 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   //this is a rough initial guess
   ////---
   double signalFraction=gl_templateScaleFactor*templates[SIG_IDX]->Integral()/data->Integral();
-  cout <<"for BR, signal for channel " << channel<< "  in MC is : " << templates[SIG_IDX]->Integral();
+  double crossFeedFraction=0;
+  gl_templateScaleFactor*templates[iDDStarPiCrossFeed-2]->Integral()/data->Integral();
+
+  cout <<"for BR, signal for channel " << channel<< "  in MC is : " << templates[SIG_IDX]->Integral() <<endl;;
+  cout <<"we have " << numComponents <<" components, " << numMergers <<" mergers, so overall: "<< numComponents-numMergers << " templates"<<endl;
+  cout <<" we think that the cross feed has index " << iDDStarPiCrossFeed-2 << " and that its integral is " <<      templates[iDDStarPiCrossFeed-2]->Integral() <<endl;
+
   double mcSignalIntegral=templates[SIG_IDX]->Integral();
   ///---
 
@@ -769,6 +782,7 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
     {
       //get templates merges templates, so the index has to be reduced by the number of mergers (should be 2)
       mcSignalIntegralCrossFeed=templates[iDDStarPiCrossFeed-2]->Integral();
+      cout <<"mc signal int cross feed: "<< mcSignalIntegralCrossFeed <<endl;
     }
   cout <<"signal Fraction estimated to be : " << signalFraction<<endl;
   cout <<"add noise? " << addNoise <<endl;
@@ -792,8 +806,17 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 #else
     double S=getFitSignal(data,templates,numComponents-numMergers,result,mcPredictions,fitVal, fitErr, fixThresholdCounts,allFitVals, allFitErrs, numEffective,_effectiveComponentsIndices,_status, numPions);  
 #endif
+    float fitSum=0.0;
+    float tempIntegral=0.0;
+    for(int i=0;i<numEffective;i++)
+      {
+	fitSum+=allFitVals[i];
+	tempIntegral+=templates[i]->Integral();
+      }
 
+    cout <<"sum of all fractions: " << fitSum <<", templates: " << tempIntegral <<endl;
     float templateSignalFraction=gl_lastSignalFraction;
+    float templateCrossFeedFraction=gl_lastCrossFeedFraction;
 
   //  float signalFraction=templates[SIG_IDX]/data->Integral();
 
@@ -805,33 +828,39 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
       //scale data by 0.2 since otherwise it is the sum of the 5 streams...
       //	data->Scale(0.2);
       //-->do this in the 'performFractionFit... function'
-      int maxIterations=2000;
-      //      if(glChannelIdx<5)
+      int maxIterations=4000;
+      if(glChannelIdx<5)
       {
-      //	maxIterations=1;
+      	maxIterations=1;
       }
 
       for(int nIt=0;nIt<maxIterations;nIt++)
 	{
 	  float locSignalFraction=signalFraction;
+	  float locCrossFeedFraction=crossFeedFraction;
 	  if(glChannelIdx<5 && gl_signalFraction[glChannelIdx]>0)
 	    {
 	      locSignalFraction=gl_signalFraction[glChannelIdx];
+	      locCrossFeedFraction=gl_xFeedFraction[glChannelIdx];
 	    }
 	  if(glChannelIdx==5 && gl_signalInt[1]>0 && gl_dataInt[1]>0 && gl_dataInt[2]>0)
 	    {
 	      locSignalFraction=gl_signalInt[1]/(gl_dataInt[1]+gl_dataInt[2]);
+	      //D* channel signal is crossfeed for the combined case
+	      locCrossFeedFraction=(gl_xFeedInt[1]+gl_signalInt[2])/(gl_dataInt[1]+gl_dataInt[2]);
 	    }
 	  if(glChannelIdx==5 && gl_signalInt[3]>0 && gl_dataInt[3]>0 && gl_dataInt[4]>0)
 	    {
 	      locSignalFraction=gl_signalInt[3]/(gl_dataInt[3]+gl_dataInt[4]);
+	      locCrossFeedFraction=(gl_xFeedInt[3]+gl_signalInt[4])/(gl_dataInt[3]+gl_dataInt[4]);
 	    }
 	  cout <<"locSignalFraction: "<< locSignalFraction <<" template signal fraction: " << templateSignalFraction<<endl;
 	  //let's try this:
 #ifdef GENERATE_SINGLE_STREAM
 	  locSignalFraction=templateSignalFraction;
+	  locCrossFeedFraction=templateCrossFeedFraction;
 #endif
-	      performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls, locSignalFraction, fixThresholdCounts, numPions);
+	  performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls,pullsFeedDown, locSignalFraction, locCrossFeedFraction,fixThresholdCounts, numPions);
 	}
     }
   /////////-----------done with the fraction stability test (pulls etc)
@@ -904,8 +933,9 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 	    signalIdx=i;
 	  }
 	//again, some of the templates are merged, so there is a shift by 2 in the indices
-	if(_effectiveComponentsIndices[i]!=(iDDStarPiCrossFeed-2))
+	if(_effectiveComponentsIndices[i]==(iDDStarPiCrossFeed-2))
 	  {
+	    cout << " setting cross feed index to : "<< i <<endl;
 	    signalIdxCrossFeed=i;
 	  }
       }
@@ -918,10 +948,21 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 	TH1F* mcCompCrossFeed;
 	//again, some of the templates are merged, so there is a shift by 2 in the indices
 	if(channel>3)
-	   mcCompCrossFeed=mcPredictions[iDDStarPiCrossFeed-2];
+	  {
+	    mcCompCrossFeed=mcPredictions[signalIdxCrossFeed];
+	    cout <<" x-feed predition is: "<< mcCompCrossFeed->Integral() <<" original template: " << templates[iDDStarPiCrossFeed-numMergers] <<" (mergers: " << numMergers <<")" <<endl;
+	    cout <<"temp Int : " << tempIntegral <<" so template fraction is " << templates[iDDStarPiCrossFeed-numMergers]->Integral()/tempIntegral << ", ratio to fit: " <<  allFitVals[signalIdxCrossFeed]/(templates[iDDStarPiCrossFeed-numMergers]->Integral()/tempIntegral) <<endl; 
+
+
+	  }
 	cout <<"got pred " << endl;
 	double mcPredInt=mcComp->Integral();
-	double mcPredIntCrossFeed=mcCompCrossFeed->Integral();
+	double mcPredIntCrossFeed=0;
+	if(channel>3)
+	  {
+	    mcPredIntCrossFeed=mcCompCrossFeed->Integral();
+	    cout <<"mc predIntCross feed: "<< mcPredIntCrossFeed <<endl;
+	  }
 	sumOfCompInts+=mcPredInt;
 	float scaleFact=integralResult/mcPredInt*allFitVals[signalIdx];
 	float scaleFactCrossFeed=0;
@@ -942,8 +983,14 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 	mcComp->SetFillColor(glColorTable[SIG_IDX]->GetNumber());
 
 	cout <<"BR ratio to MC for channel " << channelString << " is : "<< mcComp->Integral()/mcSignalIntegral<<endl;
+	cout <<"fit val: "<< allFitVals[signalIdx] << " uncert: "<< allFitErrs[signalIdx] << "  relative uncert  " << allFitErrs[signalIdx]/allFitVals[signalIdx] <<endl; 
 	if(channel>3)
-	  cout <<"BR ratio to DDStar MC for channel " << channelString << " is : "<< mcCompCrossFeed->Integral()/mcSignalIntegralCrossFeed<<endl;
+	  {
+	    mcComp->Scale(scaleFactCrossFeed);
+	    cout <<"using index: "<< signalIdxCrossFeed <<endl;
+	    cout <<"BR ratio to DDStar MC for channel " << channelString << " is : "<< mcCompCrossFeed->Integral()/mcSignalIntegralCrossFeed<<endl;
+	    cout <<"fit val: "<< allFitVals[signalIdxCrossFeed] << " uncert: "<< allFitErrs[signalIdxCrossFeed] << "  relative uncert  " << allFitErrs[signalIdxCrossFeed]/allFitVals[signalIdxCrossFeed] <<endl; 
+	  }
 
 	predComponents->Add(mcComp);
 	//	legend->AddEntry(mcComp,templateLegendNames[SIG_IDX],"f" );
@@ -1435,8 +1482,10 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   selections[iAll]=bufferAll;
 
   gl_signalSelection =new char[1000];
+  gl_xFeedSelection =new char[1000];
+  ///This is actually correct for all channels, i.e. for the D* channels, the signal is the D* and the feed down is a 'feed up' so to say...
   sprintf(gl_signalSelection,"%s",bufferDDStarPi);
-
+  sprintf(gl_xFeedSelection,"%s",bufferDDStarPiCrossFeed);
   //
   // summedHistos: not differentiated between mixed and charged
   //in the end we use something like 		  summedHistos[b+1]->Add(result from selection[b]) (and continuum is treated extra)
@@ -2184,7 +2233,7 @@ void addPoissonNoise(TH1F* h)
     }
 }
 
-void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,double signalFraction, int fixThresholdCounts, int numPions)
+void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,TH1D* pullsFeedDown, double signalFraction,double crossFeedFraction, int fixThresholdCounts, int numPions)
 {
   cout <<"trying stability test.. " << endl;
   TH1F** templates=new TH1F*[numComponents];
@@ -2253,6 +2302,18 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
       S=getFitSignal(data,templates,numComponents, result,mcPredictions,fitVal, fitErr, fixThresholdCounts,allFitVals,allFitErrs, numEffective,_effectiveComponentIndices, _status, numPions);  
 
 #endif
+      int signalIdxCrossFeed=-1;
+      for(int i=0;i<numEffective;i++)
+	{
+	  if(_effectiveComponentIndices[i]==(iDDStarPiCrossFeed-2))
+	    {
+	      signalIdxCrossFeed=i;
+	    }
+	}
+      if(glChannelIdx>4)
+	{
+
+	}
       cout <<"data integral: "<< data->Integral()<< " entries: " << data->GetEntries()<<endl;
       cout <<"fitVal: " << fitVal <<" fitErr: "<< fitErr <<endl;
       cout <<"S is : " << S << " fraction times data: " << data->Integral()*fitVal <<" or " << data->GetEntries()*fitVal<<endl;
@@ -2273,6 +2334,10 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 	  else
 	    {
 	      cout <<" got large error : "<< fitErr <<" fitted sig fraction: " << fitVal <<" target: "<< signalFraction <<endl;
+	    }
+	  if(2*allFitErrs[signalIdxCrossFeed]<crossFeedFraction && allFitErrs[signalIdxCrossFeed]>0 && allFitVals[signalIdxCrossFeed]>0)
+	    {
+	      pullsFeedDown->Fill((allFitVals[signalIdxCrossFeed]-crossFeedFraction)/allFitErrs[signalIdxCrossFeed]);
 	    }
 	  //pulls->Fill((fitVal-newSignalFraction)/fitErr);
 	}
@@ -2304,493 +2369,572 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 
 float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F* &result, TH1F** mcPredictions,  double& fitVal, double& fitErr, int fixThresholdCounts, double* allFitVals, double* allFitErrs, int& numEffective,vector<int>& effectiveComponentsIndices, Int_t& status, int numPions)
 {
-  //  RooDataHist data();
-  //need to subtract the templates with small counts 
-  float S=0;
-  vector<int> countsOfComponents;
-  vector<float> integralOfComponents;
-  //  vector<int> effectiveComponentsIndices; 
-  char buffer[500];
-  int numEffectiveComponents=0;
-  //  TObjArray *mc = new TObjArray(numTemplates);        // MC histograms are put in this array
-  int signalIndex=-1;
-  int otherBBIndex1=-1;
-  int otherBBIndex2=-1;
-  int continuumIndex1=-1;
-  int continuumIndex2=-1;
-  //maybe it is better to clone the signal and subtract all the fixed components
-  TCanvas c;
-  double templateIntegral=0.0;
+  //  //for the combined channels, we have to run the fit twice since we don't seem to get the correct uncertainties from the nested fractions
+  int maxSigIdx=1;
+  if(glChannelIdx>4)
+    maxSigIdx=2;
 
-  pCount++;
+  int locNumEffective=0;
+  int* pLocNumEffective=&numEffective;
 
-  RooDataHist* rooHists[100];
-  RooHistPdf* rooHistPdfs[100];
-
-
-  double tmpLowerCut, tmpUpperCut;
-  if(glChannelIdx< 5)
+  vector<int>* locEffIndices=&effectiveComponentsIndices;
+  vector<int> locEffectiveComponentIndices;
+  float retVal=-1;
+  for(int iSigIdx=0;iSigIdx<maxSigIdx;iSigIdx++)
     {
-      tmpLowerCut=lowerCut[glChannelIdx];
-      tmpUpperCut=upperCut[glChannelIdx];
-    }
-  else
-    {
-      //D is 1, D* 2, D0 3 D0* 4 DDStar 5 D0DStar 6
-      //corresponding D and D*channel
-      if(glChannelIdx==5)
+      if(iSigIdx>0)
 	{
-	  tmpLowerCut=lowerCut[glChannelIdx-4];   
-	  tmpUpperCut=upperCut[glChannelIdx-4]+(upperCut[glChannelIdx-3]-lowerCut[glChannelIdx-3]);
+	  locEffIndices=&locEffectiveComponentIndices;
+	  pLocNumEffective=&locNumEffective;
 	}
-      if(glChannelIdx==6)
-	{
-	  tmpLowerCut=lowerCut[3];   
-	  tmpUpperCut=upperCut[3]+(upperCut[4]-lowerCut[3]);
-	}
-    }
-  //  RooRealVar rooMnu2("mNu2","mNu2",lowerCut[glChannelIdx],upperCut[glChannelIdx]);
-  cout <<" constructing rooMnu2 with lower cut: "<< tmpLowerCut <<" upper cut: "<< tmpUpperCut <<endl;
-  RooRealVar rooMnu2("mNu2","m_{#nu}^{2}",tmpLowerCut,tmpUpperCut,"GeV^{2}");
-  char rooDataName[300];
-  sprintf(rooDataName, "rooRealDataHist_numP_%d_%s_%d",numPions,channelStringGlobal,pCount);
-  RooDataHist rooData(rooDataName,rooDataName,rooMnu2,RooFit::Import(*data));
+      //  RooDataHist data();
+      //need to subtract the templates with small counts 
+      float S=0;
+      vector<int> countsOfComponents;
+      vector<float> integralOfComponents;
+	//  vector<int> effectiveComponentsIndices; 
+      char buffer[500];
+      int numEffectiveComponents=0;
+      //  TObjArray *mc = new TObjArray(numTemplates);        // MC histograms are put in this array
+      int signalIndex=-1;
+	int xFeedIndex=-1;
+	int otherBBIndex1=-1;
+	int otherBBIndex2=-1;
+	int continuumIndex1=-1;
+	int continuumIndex2=-1;
+	//maybe it is better to clone the signal and subtract all the fixed components
+	TCanvas c;
+	double templateIntegral=0.0;
+	
+	pCount++;
+	
+	RooDataHist* rooHists[100];
+	RooHistPdf* rooHistPdfs[100];
+	
+	
+	double tmpLowerCut, tmpUpperCut;
+	if(glChannelIdx< 5)
+	  {
+	    tmpLowerCut=lowerCut[glChannelIdx];
+	    tmpUpperCut=upperCut[glChannelIdx];
+	  }
+	else
+	  {
+	    //D is 1, D* 2, D0 3 D0* 4 DDStar 5 D0DStar 6
+	    //corresponding D and D*channel
+	    if(glChannelIdx==5)
+	      {
+		tmpLowerCut=lowerCut[glChannelIdx-4];   
+		tmpUpperCut=upperCut[glChannelIdx-4]+(upperCut[glChannelIdx-3]-lowerCut[glChannelIdx-3]);
+	      }
+	    if(glChannelIdx==6)
+	      {
+		tmpLowerCut=lowerCut[3];   
+		tmpUpperCut=upperCut[3]+(upperCut[4]-lowerCut[3]);
+	      }
+	  }
+	//  RooRealVar rooMnu2("mNu2","mNu2",lowerCut[glChannelIdx],upperCut[glChannelIdx]);
+	cout <<" constructing rooMnu2 with lower cut: "<< tmpLowerCut <<" upper cut: "<< tmpUpperCut <<endl;
+	RooRealVar rooMnu2("mNu2","m_{#nu}^{2}",tmpLowerCut,tmpUpperCut,"GeV^{2}");
+	char rooDataName[300];
+	sprintf(rooDataName, "rooRealDataHist_numP_%d_%s_%d",numPions,channelStringGlobal,pCount);
+	RooDataHist rooData(rooDataName,rooDataName,rooMnu2,RooFit::Import(*data));
   //get the non-zero ones...
-  for(int i=0;i<numTemplates;i++)
-    {
-      //      if(templates[i]->GetEntries()>0)
-      if(templates[i]->Integral()>0)
-	{
-	  //	  templates[i]->Sumw2(0);
-	  cout <<"template " << i << " ("<<templates[i]->GetName() <<")  has " << templates[i]->Integral()<<endl;
-	  numEffectiveComponents++;
-	  sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.png",i,numPions,channelStringGlobal,pCount);
-	  templates[i]->Draw();
-	  if(((pCount-1)%100)==0 || pCount< 7)
-	    {
-	      c.SaveAs(buffer);
-	      sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.pdf",i,numPions,channelStringGlobal,pCount);
-	      c.SaveAs(buffer);
-	      sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.png",i,numPions,channelStringGlobal,pCount);
-	      c.SaveAs(buffer);
-	    }
-	  //because we add later
-	  int effIndex=effectiveComponentsIndices.size();
-	  sprintf(buffer, "rooDataHist_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
-	  rooHists[effIndex]=new RooDataHist(buffer,buffer,rooMnu2,RooFit::Import(*templates[i]));
-	  sprintf(buffer, "rooDataHistPdf_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
+	for(int i=0;i<numTemplates;i++)
+	  {
+	    //      if(templates[i]->GetEntries()>0)
+	    if(templates[i]->Integral()>0)
+	      {
+		//	  templates[i]->Sumw2(0);
+		cout <<"template " << i << " ("<<templates[i]->GetName() <<")  has " << templates[i]->Integral()<<endl;
+		numEffectiveComponents++;
+		sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.png",i,numPions,channelStringGlobal,pCount);
+		templates[i]->Draw();
+		if(((pCount-1)%100)==0 || pCount< 7)
+		  {
+		    c.SaveAs(buffer);
+		    sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.pdf",i,numPions,channelStringGlobal,pCount);
+		    c.SaveAs(buffer);
+		    sprintf(buffer,"poissonTemplate%d_numPions%d_%s_%d.png",i,numPions,channelStringGlobal,pCount);
+		    c.SaveAs(buffer);
+		  }
+		//because we add later
+		int effIndex=locEffIndices->size();
+		sprintf(buffer, "rooDataHist_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
+		rooHists[effIndex]=new RooDataHist(buffer,buffer,rooMnu2,RooFit::Import(*templates[i]));
+		sprintf(buffer, "rooDataHistPdf_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
 
-	  cout <<"creating new pdf at index: "<< effIndex <<endl;
+		cout <<"creating new pdf at index: "<< effIndex <<endl;
+		
+		///can play with the interpolation here... (seems to make things very slow though...)
+		rooHistPdfs[effIndex]=new RooHistPdf(buffer,buffer, rooMnu2,*rooHists[effIndex],0);
+		
+		//computation otherwise to complex with template combination and the like
+		if((string(templates[i]->GetName()).find("continuum")!=string::npos) && (string(templates[i]->GetName()).find("BToD_")!=string::npos || string(templates[i]->GetName()).find("B0ToD_")!=string::npos))
+		  {
+		    continuumIndex1=locEffIndices->size();
+		  }
+		if((string(templates[i]->GetName()).find("continuum")!=string::npos) && (string(templates[i]->GetName()).find("BToDStar_")!=string::npos || string(templates[i]->GetName()).find("B0ToDStar_")!=string::npos))
+		  {
+		    continuumIndex2=locEffIndices->size();
+		  }
+		if((string(templates[i]->GetName()).find("OtherBB")!=string::npos) && (string(templates[i]->GetName()).find("BToD_")!=string::npos || string(templates[i]->GetName()).find("B0ToD_")!=string::npos))
+		  {
+		    otherBBIndex1=locEffIndices->size();
+		  }
+		if((string(templates[i]->GetName()).find("OtherBB")!=string::npos) && (string(templates[i]->GetName()).find("BToDStar")!=string::npos|| string(templates[i]->GetName()).find("B0ToDStar")!=string::npos))
+		  {
+		    otherBBIndex2=locEffIndices->size();
+		  }
+		if(i==SIG_IDX)
+		  {
+		    signalIndex=locEffIndices->size();
+		    cout <<"set signalIndex to " << signalIndex<<" (SIG_IDX=" << SIG_IDX << endl;
+		  }
+		//there should be only one CrossFeed component
+		if(string(templates[i]->GetName()).find("CrossFeed")!=string::npos)
+		  {
+		    cout <<"setting xFeedIndex to: "<< xFeedIndex <<endl;
+		    xFeedIndex=locEffIndices->size();
+		  }
+		
+		locEffIndices->push_back(i);
+		//the same as the test effectiveComponentIndices[i]==2 from the regular fit
+		//	  countsOfComponents.push_back(templates[i]->Integral());
+		double tempIntegral=templates[i]->Integral();
+		cout <<"template " << i << " has " << templates[i]->Integral() <<", " << tempIntegral<<" and " << templates[i]->GetEntries() << " counts " << endl;
+		integralOfComponents.push_back(tempIntegral);
+		//	  if((i==SIG_IDX && numPions > 0 )|| (i==iDLNu && numPions==0))
+		templateIntegral+=tempIntegral;
+		}
+	      }
+      
+    //switch the xFeed and signal indices if we are interested in the cross-feed
+    int tmpIndex=signalIndex;
+    if(iSigIdx>0)
+      {
+	cout <<"switch signal index " << signalIndex <<" and xFeed: "<< xFeedIndex;
+	signalIndex=xFeedIndex;
+	xFeedIndex=tmpIndex;
+	cout <<" to : "<< signalIndex <<" and " << xFeedIndex <<endl;
+      }
 
-	  ///can play with the interpolation here... (seems to make things very slow though...)
-	  rooHistPdfs[effIndex]=new RooHistPdf(buffer,buffer, rooMnu2,*rooHists[effIndex],0);
 
-	  //computation otherwise to complex with template combination and the like
-	  if((string(templates[i]->GetName()).find("continuum")!=string::npos) && (string(templates[i]->GetName()).find("BToD_")!=string::npos || string(templates[i]->GetName()).find("B0ToD_")!=string::npos))
-	    {
-	      continuumIndex1=effectiveComponentsIndices.size();
-	    }
-	  if((string(templates[i]->GetName()).find("continuum")!=string::npos) && (string(templates[i]->GetName()).find("BToDStar_")!=string::npos || string(templates[i]->GetName()).find("B0ToDStar_")!=string::npos))
-	    {
-	      continuumIndex2=effectiveComponentsIndices.size();
-	    }
-	  if((string(templates[i]->GetName()).find("OtherBB")!=string::npos) && (string(templates[i]->GetName()).find("BToD_")!=string::npos || string(templates[i]->GetName()).find("B0ToD_")!=string::npos))
-	    {
-	      otherBBIndex1=effectiveComponentsIndices.size();
-	    }
-	  if((string(templates[i]->GetName()).find("OtherBB")!=string::npos) && (string(templates[i]->GetName()).find("BToDStar")!=string::npos|| string(templates[i]->GetName()).find("B0ToDStar")!=string::npos))
-	    {
-	      otherBBIndex2=effectiveComponentsIndices.size();
-	    }
-	  if(i==SIG_IDX)
-	    {
-	      signalIndex=effectiveComponentsIndices.size();
-	      cout <<"set signalIndex to " << signalIndex<<endl;
-	    }
-	  effectiveComponentsIndices.push_back(i);
-	  //the same as the test effectiveComponentIndices[i]==2 from the regular fit
-	  //	  countsOfComponents.push_back(templates[i]->Integral());
-	  double tempIntegral=templates[i]->Integral();
-	  cout <<"template " << i << " has " << templates[i]->Integral() <<", " << tempIntegral<<" and " << templates[i]->GetEntries() << " counts " << endl;
-	  integralOfComponents.push_back(tempIntegral);
-	  //	  if((i==SIG_IDX && numPions > 0 )|| (i==iDLNu && numPions==0))
-	  if(i==SIG_IDX)
-	    {
-	      templateIntegral+=tempIntegral;
-	    }
-	  else{
-	    templateIntegral+=tempIntegral;
+
+	cout <<"other bb indices: " << otherBBIndex1 <<" and " << otherBBIndex2 <<endl;
+	cout <<"we have " << numEffectiveComponents <<" non-zero components " <<endl;
+	//  data->Sumw2(0);
+	double dataIntegral=data->Integral();
+	cout <<"done with integral: "<< templateIntegral <<", data integral: "<< dataIntegral <<endl;
+	// to scale roughly to the 5 (or 4) streams used. For the poisson noise add the two integrals should be roughly the same
+	//this was dataIntegral<3*templateIntegral before... probably wrong
+	if(3*dataIntegral<templateIntegral)
+	  {
+	    cout <<" rescaling data integral by factor 5 " << endl;
+	    dataIntegral*=5; 
 	  }
-	}
-    }
-  cout <<"other bb indices: " << otherBBIndex1 <<" and " << otherBBIndex2 <<endl;
-  cout <<"we have " << numEffectiveComponents <<" non-zero components " <<endl;
-  //  data->Sumw2(0);
-  double dataIntegral=data->Integral();
-  cout <<"done with integral: "<< templateIntegral <<", data integral: "<< dataIntegral <<endl;
-// to scale roughly to the 5 (or 4) streams used. For the poisson noise add the two integrals should be roughly the same
-//this was dataIntegral<3*templateIntegral before... probably wrong
-  if(3*dataIntegral<templateIntegral)
-    {
-      cout <<" rescaling data integral by factor 5 " << endl;
-      dataIntegral*=5; 
-    }
-
-  data->Draw();
-  cout <<"done with data draw.." << endl;
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer,"poissonData_%s.png",channelStringGlobal);
-      c.SaveAs(buffer);
-      sprintf(buffer,"poissonData_%s.png",channelStringGlobal);
-      c.SaveAs(buffer);
-    }
-
-   //   fit->GetFitter()->SetPrecision(0.001);
-  double sumOfFractions=0.0;
-  double sumOfIntegrals=0.0;
-  double signalFraction=0.0;
-  vector<int> fixedComponents;
-  vector<double> backgroundFractions;
-  double totalBGFraction=0.0;
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      //  int fixThresholdCounts=2000;
+	
+	data->Draw();
+	cout <<"done with data draw.." << endl;
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer,"poissonData_%s.png",channelStringGlobal);
+	    c.SaveAs(buffer);
+	    sprintf(buffer,"poissonData_%s.png",channelStringGlobal);
+	    c.SaveAs(buffer);
+	  }
+	
+	//   fit->GetFitter()->SetPrecision(0.001);
+	double sumOfFractions=0.0;
+	double sumOfIntegrals=0.0;
+	double signalFraction=0.0;
+	vector<int> fixedComponents;
+	vector<double> backgroundFractions;
+	double totalBGFraction=0.0;
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    //  int fixThresholdCounts=2000;
 #ifndef PARTIAL_BOX 
-      if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+	    if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
 #else
-	//the low counts in the partial_box case doesn't allow to differentiate between feed-down and other bb
-		if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
-	//	if(integralOfComponents[i]>0|| i==signalIndex)
-	//	if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) )//  && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+	      //the low counts in the partial_box case doesn't allow to differentiate between feed-down and other bb
+	      if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+		//	if(integralOfComponents[i]>0|| i==signalIndex)
+		//	if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) )//  && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
 #endif 
-	{
-	  //anyways good to give decent start value. The only caveat is that the signal is most likely less than what we think in MC. So the signal fraction is proably a bit overestimated and 
-	  //the other fractions underestimated. But in principel we can calculate the best start value by taking the pdg value for the signal (i.e. half es much as MC pred)
-	  double iThFraction=integralOfComponents[i]/templateIntegral;
-	  cout <<"iTh: " << iThFraction <<endl;
-	  //aim for roughly constant counts for these backgrounds. So if we see much less data than expected the fraction should rise
-	  cout <<"component integral : " << integralOfComponents[i] << ", templateIntegral: " << templateIntegral <<" dataIntegral : " << dataIntegral <<endl;
-	  //	  iThFraction*=(templateIntegral/dataIntegral);
-	  cout <<"now: "<< iThFraction <<endl;
-	  sumOfFractions+=iThFraction;
-	  sumOfIntegrals+=integralOfComponents[i];
-	  if(i==signalIndex)
-	    {
-	      signalFraction=iThFraction;
-	      gl_lastSignalFraction=iThFraction;
-	      //to have some variation...
-	      //	      iThFraction-=0.05;
-	      //two the factor two mojo...
-
-	      //	      iThFraction=integralOfComponents[i]/(2*templateIntegral);
-	      //	      iThFraction=integralOfComponents[i]/(templateIntegral);
-	      //	      iThFraction/=2;
-	      cout << " setting signal fraction to  " << iThFraction <<endl;
-	    }
-	  else{
-	    backgroundFractions.push_back(iThFraction);
-	    totalBGFraction+=iThFraction;
-	    cout << " setting non signal fraction " << i <<" ("<<templates[effectiveComponentsIndices[i]]->GetName() <<")  to  " << iThFraction <<endl;
+		{
+		  //anyways good to give decent start value. The only caveat is that the signal is most likely less than what we think in MC. So the signal fraction is proably a bit overestimated and 
+		  //the other fractions underestimated. But in principel we can calculate the best start value by taking the pdg value for the signal (i.e. half es much as MC pred)
+		  double iThFraction=integralOfComponents[i]/templateIntegral;
+		  cout <<"iTh: " << iThFraction <<endl;
+		  //aim for roughly constant counts for these backgrounds. So if we see much less data than expected the fraction should rise
+		  cout <<"component integral : " << integralOfComponents[i] << ", templateIntegral: " << templateIntegral <<" dataIntegral : " << dataIntegral <<endl;
+		  //	  iThFraction*=(templateIntegral/dataIntegral);
+		  cout <<"now: "<< iThFraction <<endl;
+		  sumOfFractions+=iThFraction;
+		  sumOfIntegrals+=integralOfComponents[i];
+		  if(i==xFeedIndex && iSigIdx==0)
+		    {
+		      gl_lastCrossFeedFraction=iThFraction;
+		    }
+		  if(i==signalIndex)
+		    {
+		      signalFraction=iThFraction;
+		      if(iSigIdx==0)
+			{
+			  gl_lastSignalFraction=iThFraction;
+			}
+		      //gl_lastXFeedFraction=
+		      //to have some variation...
+		      //	      iThFraction-=0.05;
+		      //two the factor two mojo...
+		      
+		      //	      iThFraction=integralOfComponents[i]/(2*templateIntegral);
+		      //	      iThFraction=integralOfComponents[i]/(templateIntegral);
+		      //	      iThFraction/=2;
+		      cout << " setting signal fraction to  " << iThFraction <<endl;
+		    }
+		  else{
+		    backgroundFractions.push_back(iThFraction);
+		    totalBGFraction+=iThFraction;
+		    cout << " setting non signal fraction " << i <<" ("<<templates[(*locEffIndices)[i]]->GetName() <<")  to  " << iThFraction <<endl;
+		  }
+		  sprintf(buffer,"para%d",i);
+		  float upperLimit=1.0;
+		  float lowerLimit=0.0;
+		  upperLimit=2*iThFraction;
+		  if(iThFraction>0.1)
+		    {
+		      lowerLimit=0.5*iThFraction;
+		    }
+		  float paraUncert=0.1*iThFraction;
+		  paraUncert=0.1; //better than above
+		  //	  paraUncert=0.;
+		  ////->	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,paraUncert,lowerLimit,upperLimit);
+		  
+		  //does the set parameter do already the same as constrain?
+		  //	  fit->Constrain(i,0.0,1.0);               // constrain fraction i to be between 0 and 1
+		}
+	      else
+		{
+		  fixedComponents.push_back(i);
+		  double iThFraction=integralOfComponents[i]/templateIntegral;
+		  backgroundFractions.push_back(iThFraction);
+		  cout <<"fraction " << i << " is :" << iThFraction<<endl;
+		  totalBGFraction+=iThFraction;
+		  sumOfFractions+=iThFraction;
+		  sumOfIntegrals+=integralOfComponents[i];
+		  cout <<"component integral : " << integralOfComponents[i] << ", templateIntegral: " << templateIntegral <<" dataIntegral : " << dataIntegral <<endl;
+		  cout <<"fixing parameter " << i <<" ("<<templates[(*locEffIndices)[i]]->GetName() <<") to " << iThFraction <<endl;
+		  sprintf(buffer,"para%d",i);
+		}
 	  }
-	  sprintf(buffer,"para%d",i);
-	  float upperLimit=1.0;
-	  float lowerLimit=0.0;
-	  upperLimit=2*iThFraction;
-	  if(iThFraction>0.1)
-	    {
-	      lowerLimit=0.5*iThFraction;
-	    }
-	  float paraUncert=0.1*iThFraction;
-	  paraUncert=0.1; //better than above
-	  //	  paraUncert=0.;
-	  ////->	  fit->GetFitter()->SetParameter(i,buffer,iThFraction,paraUncert,lowerLimit,upperLimit);
-
-	  //does the set parameter do already the same as constrain?
-	  //	  fit->Constrain(i,0.0,1.0);               // constrain fraction i to be between 0 and 1
-	}
-      else
-	{
-	  fixedComponents.push_back(i);
-	  double iThFraction=integralOfComponents[i]/templateIntegral;
-	  backgroundFractions.push_back(iThFraction);
-	  cout <<"fraction " << i << " is :" << iThFraction<<endl;
-	  totalBGFraction+=iThFraction;
-	  sumOfFractions+=iThFraction;
-	  sumOfIntegrals+=integralOfComponents[i];
-	  cout <<"component integral : " << integralOfComponents[i] << ", templateIntegral: " << templateIntegral <<" dataIntegral : " << dataIntegral <<endl;
-	  cout <<"fixing parameter " << i <<" ("<<templates[effectiveComponentsIndices[i]]->GetName() <<") to " << iThFraction <<endl;
-	  sprintf(buffer,"para%d",i);
-	}
-    }
   //now construct everything we need for the roofit...:
   ////----
-  int bgCounter=-1;
-  RooArgList bgShapes;
-  //minus the signal
-  RooArgList bgFracList; 
-  cout<<"constructing roo bg shapes, total bgFraction: "<< totalBGFraction <<endl;
-  RooRealVar* rvArr[100];
-
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      if(i!=signalIndex)
-	{
-	  bgCounter++;
-	  bgShapes.add(*rooHistPdfs[i]);
-	  sprintf(buffer, "roofracVar_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
-	  RooRealVar* rv=new RooRealVar(buffer,buffer,backgroundFractions[bgCounter]/totalBGFraction,0,1);
-	  cout <<"setting bg fraction i :" << i <<" bgCounter: "<< bgCounter <<" to : " << backgroundFractions[bgCounter] <<" /  " << totalBGFraction << " = " << backgroundFractions[bgCounter]/totalBGFraction <<endl;
-	  //so we can delete more easily
-	  rvArr[i]=rv;
-	  //if constant
-	  if(find(fixedComponents.begin(),fixedComponents.end(),i)!=fixedComponents.end())
-	    {
-	      cout <<"fixing component " << i  << endl;
-	      rv->setConstant(true);
-	    }
-	  else
+	int bgCounter=-1;
+	RooArgList bgShapes;
+	//minus the signal
+	RooArgList bgFracList; 
+	cout<<"constructing roo bg shapes, total bgFraction: "<< totalBGFraction <<endl;
+	RooRealVar* rvArr[100];
+	
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    if(i!=signalIndex)
+	      {
+		bgCounter++;
+		bgShapes.add(*rooHistPdfs[i]);
+		sprintf(buffer, "roofracVar_%d_numP_%d_%s_%d",i,numPions,channelStringGlobal,pCount);
+		RooRealVar* rv=new RooRealVar(buffer,buffer,backgroundFractions[bgCounter]/totalBGFraction,0,1);
+		cout <<"setting bg fraction i :" << i <<" bgCounter: "<< bgCounter <<" to : " << backgroundFractions[bgCounter] <<" /  " << totalBGFraction << " = " << backgroundFractions[bgCounter]/totalBGFraction <<endl;
+		//so we can delete more easily
+		rvArr[i]=rv;
+		//if constant
+		if(find(fixedComponents.begin(),fixedComponents.end(),i)!=fixedComponents.end())
+		  {
+		    cout <<"fixing component " << i  << endl;
+		    rv->setConstant(true);
+		  }
+		else
 	    {
 	      cout <<"component " << i << " is left unfixed " << endl;
 	    }
-	  bgFracList.add(*rv);
-	}
-    }
-  sprintf(buffer, "bgPdf_numP_%d_%s",numPions,channelStringGlobal);
-  RooAddPdf bgPdf(buffer,buffer,bgShapes,bgFracList);
+		bgFracList.add(*rv);
+	      }
+	  }
+	sprintf(buffer, "bgPdf_numP_%d_%s",numPions,channelStringGlobal);
+	RooAddPdf bgPdf(buffer,buffer,bgShapes,bgFracList);
+	
+	RooArgList sigBgFractions;
+	sprintf(buffer, "totalBgFraction_numP_%d_%s",numPions,channelStringGlobal);
+	RooRealVar rooBgFrac(buffer,buffer,totalBGFraction*data->Integral(),0,100000);
+	sprintf(buffer, "totalSigFraction_numP_%d_%s",numPions,channelStringGlobal);
+	RooRealVar rooSigFrac(buffer,buffer,(1-totalBGFraction)*data->Integral(),0,100000);
+	sigBgFractions.add(rooBgFrac);
+	sigBgFractions.add(rooSigFrac);
+	RooArgList sigBgPdfs;
+	sigBgPdfs.add(bgPdf);
+	sigBgPdfs.add(*rooHistPdfs[signalIndex]);
+	char totalPdfName[300];
+	sprintf(totalPdfName,"totalPdf_numP_%d_%s",numPions,channelStringGlobal);
+	RooAddPdf totalPdf(totalPdfName,totalPdfName,sigBgPdfs,sigBgFractions);
+	
+	RooPlot* bFrame1=rooMnu2.frame();
+	RooPlot* bFrame2=rooMnu2.frame();
+	RooPlot* bFrame3=rooMnu2.frame();
+	RooPlot* bFrame4=rooMnu2.frame();
+	totalPdf.plotOn(bFrame1);
+	bFrame1->Draw();
+	
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "before_totalPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	    
+	  }
+	bgPdf.plotOn(bFrame2);
+	bFrame2->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "before_bgPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	rooHistPdfs[signalIndex]->plotOn(bFrame3);
+	bFrame3->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "before_sigPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	
+	rooData.plotOn(bFrame4);
+	bFrame4->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "before_rooData_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	
+	double summedBGFracs=0;
+	double summedBGFracsW=0;
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    if(i!=signalIndex)
+	      {
+		//not fixed
+		//	  if(find(fixedComponents.begin(),fixedComponents.end(),i)==fixedComponents.end())
+		{
+		  summedBGFracs+=rvArr[i]->getValV();
+		  summedBGFracsW+=rvArr[i]->getValV()*rooBgFrac.getValV();
+		}
+	      }
+	  }
+	cout <<"before summedBGFracs: "<< summedBGFracs <<" weighted: "<< summedBGFracsW <<endl;
+	RooFitResult* fitres=totalPdf.fitTo(rooData,RooFit::Extended(),RooFit::SumW2Error(kTRUE));
+	//  RooFitResult* fitres=totalPdf.fitTo(rooData,RooFit::Extended(),RooFit::SumW2Error(kFALSE));
+	//  totalPdf.fitTo(rooData);
+	//get result, produce result and mcPred plots
+	RooPlot* mFrame1=rooMnu2.frame();
+	RooPlot* mFrame2=rooMnu2.frame();
+	RooPlot* mFrame3=rooMnu2.frame();
+	RooPlot* mFrame4=rooMnu2.frame();
+	RooPlot* combinedFrame=rooMnu2.frame();
+	
+	totalPdf.plotOn(mFrame1);
+	
+	
+	cout <<"all done " << endl;
+	rooData.plotOn(combinedFrame);
+	totalPdf.plotOn(combinedFrame);
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    //does not look pretty since it is not stacked and each pdf is scaled to the data
+	    //      rooHistPdfs[i]->plotOn(combinedFrame);
+	  }
+	double reducedChi2=combinedFrame->chiSquare(totalPdfName,rooDataName,3);
+	cout <<"chi2 of fit: "<< reducedChi2 <<endl;
+	combinedFrame->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "dataFit_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	    sprintf(buffer, "dataFit_numP_%d_%s_%d.pdf",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	mFrame1->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "totalPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	bgPdf.plotOn(mFrame2);
+	mFrame2->Draw();
+	if(((pCount-1)%100)==0|| pCount < 7)
+	  {
+	    sprintf(buffer, "bgPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	rooHistPdfs[signalIndex]->plotOn(mFrame3);
+	mFrame3->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "sigPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	rooData.plotOn(mFrame4);
+	mFrame4->Draw();
+	if(((pCount-1)%100)==0 || pCount < 7)
+	  {
+	    sprintf(buffer, "rooData_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
+	    c.SaveAs(buffer);
+	  }
+	cout <<"fitted sig fraction: "<<   rooSigFrac.getValV() <<" +- " <<rooSigFrac.getError()<<endl;
+	cout <<"fitted bg fraction: "<<   rooBgFrac.getValV() <<" +- " <<rooBgFrac.getError()<<endl;
+	
+	//since this is fitted to the whole integral
+	double scaleFactor=rooSigFrac.getValV()+rooBgFrac.getValV();
+	
+	cout <<"scaleFactor: "<< scaleFactor <<" data integral: "<< data->Integral() <<endl;
+	if(iSigIdx==0)
+	  {
+	    fitVal=rooSigFrac.getValV();
+	    fitErr=rooSigFrac.getError();
+	    fitVal/=scaleFactor;
+	    fitErr/=scaleFactor;
+	  }
 
-  RooArgList sigBgFractions;
-  sprintf(buffer, "totalBgFraction_numP_%d_%s",numPions,channelStringGlobal);
-  RooRealVar rooBgFrac(buffer,buffer,totalBGFraction*data->Integral(),0,100000);
-  sprintf(buffer, "totalSigFraction_numP_%d_%s",numPions,channelStringGlobal);
-  RooRealVar rooSigFrac(buffer,buffer,(1-totalBGFraction)*data->Integral(),0,100000);
-  sigBgFractions.add(rooBgFrac);
-  sigBgFractions.add(rooSigFrac);
-  RooArgList sigBgPdfs;
-  sigBgPdfs.add(bgPdf);
-  sigBgPdfs.add(*rooHistPdfs[signalIndex]);
-  char totalPdfName[300];
-  sprintf(totalPdfName,"totalPdf_numP_%d_%s",numPions,channelStringGlobal);
-  RooAddPdf totalPdf(totalPdfName,totalPdfName,sigBgPdfs,sigBgFractions);
-
-  RooPlot* bFrame1=rooMnu2.frame();
-  RooPlot* bFrame2=rooMnu2.frame();
-  RooPlot* bFrame3=rooMnu2.frame();
-  RooPlot* bFrame4=rooMnu2.frame();
-  totalPdf.plotOn(bFrame1);
-  bFrame1->Draw();
-  
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "before_totalPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-
-    }
-  bgPdf.plotOn(bFrame2);
-  bFrame2->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "before_bgPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-  rooHistPdfs[signalIndex]->plotOn(bFrame3);
-  bFrame3->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "before_sigPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-
-  rooData.plotOn(bFrame4);
-  bFrame4->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "before_rooData_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-
-  double summedBGFracs=0;
-  double summedBGFracsW=0;
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      if(i!=signalIndex)
-	{
-	  //not fixed
-	  //	  if(find(fixedComponents.begin(),fixedComponents.end(),i)==fixedComponents.end())
-	    {
-	      summedBGFracs+=rvArr[i]->getValV();
-	      summedBGFracsW+=rvArr[i]->getValV()*rooBgFrac.getValV();
-	    }
-	}
-    }
-  cout <<"before summedBGFracs: "<< summedBGFracs <<" weighted: "<< summedBGFracsW <<endl;
-  RooFitResult* fitres=totalPdf.fitTo(rooData,RooFit::Extended());
-  //  totalPdf.fitTo(rooData);
-  //get result, produce result and mcPred plots
-  RooPlot* mFrame1=rooMnu2.frame();
-  RooPlot* mFrame2=rooMnu2.frame();
-  RooPlot* mFrame3=rooMnu2.frame();
-  RooPlot* mFrame4=rooMnu2.frame();
-  RooPlot* combinedFrame=rooMnu2.frame();
-
-  totalPdf.plotOn(mFrame1);
-
-
-  cout <<"all done " << endl;
-  rooData.plotOn(combinedFrame);
-  totalPdf.plotOn(combinedFrame);
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      //does not look pretty since it is not stacked and each pdf is scaled to the data
-      //      rooHistPdfs[i]->plotOn(combinedFrame);
-    }
-  double reducedChi2=combinedFrame->chiSquare(totalPdfName,rooDataName,3);
-  cout <<"chi2 of fit: "<< reducedChi2 <<endl;
-  combinedFrame->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "dataFit_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-      sprintf(buffer, "dataFit_numP_%d_%s_%d.pdf",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-  mFrame1->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "totalPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-  bgPdf.plotOn(mFrame2);
-  mFrame2->Draw();
-  if(((pCount-1)%100)==0|| pCount < 7)
-    {
-      sprintf(buffer, "bgPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-  rooHistPdfs[signalIndex]->plotOn(mFrame3);
-  mFrame3->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "sigPdf_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-     c.SaveAs(buffer);
-    }
-  rooData.plotOn(mFrame4);
-  mFrame4->Draw();
-  if(((pCount-1)%100)==0 || pCount < 7)
-    {
-      sprintf(buffer, "rooData_numP_%d_%s_%d.png",numPions,channelStringGlobal,pCount);
-      c.SaveAs(buffer);
-    }
-  cout <<"fitted sig fraction: "<<   rooSigFrac.getValV() <<" +- " <<rooSigFrac.getError()<<endl;
-  cout <<"fitted bg fraction: "<<   rooBgFrac.getValV() <<" +- " <<rooBgFrac.getError()<<endl;
-
-  //since this is fitted to the whole integral
-  double scaleFactor=rooSigFrac.getValV()+rooBgFrac.getValV();
-
-  cout <<"scaleFactor: "<< scaleFactor <<" data integral: "<< data->Integral() <<endl;
-  fitVal=rooSigFrac.getValV();
-  fitErr=rooSigFrac.getError();
+	if(iSigIdx==0)
+	  {
+	    retVal=fitVal;
+	  }
+	
+	cout <<"roo fit signal index: "<< signalIndex <<endl;
+	////save output histograms to see that we have the right stuff...
+	sprintf(buffer, "result_numP_%d_%s",numPions,channelStringGlobal);
+	//  result=(TH1F*)templates[effectiveComponentsIndices[signalIndex]]->Clone(buffer);
+	summedBGFracs=0;
+	summedBGFracsW=0;
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    if(i!=signalIndex)
+	      {
+		//not fixed
+		//	  if(find(fixedComponents.begin(),fixedComponents.end(),i)==fixedComponents.end())
+		{
+		  summedBGFracs+=rvArr[i]->getValV();
+		  summedBGFracsW+=rvArr[i]->getValV()*rooBgFrac.getValV();
+		}
+	      }
+	  }
+	cout <<"summedBGFracs: "<< summedBGFracs <<" weighted: "<< summedBGFracsW <<endl;
+	
+	
+	if(iSigIdx==0)
+	  {
+	    for(int i=0;i<numEffectiveComponents;i++)
+	      {
+		sprintf(buffer, "mcPred_%d_numP_%d_%s",i,numPions,channelStringGlobal);
+		mcPredictions[i]=(TH1F*)templates[(*locEffIndices)[i]]->Clone(buffer);
+		if(i!=signalIndex)
+		  {
+		    //but this is relative to the bgFraction, so scale up with that and then scale down
+		    allFitVals[i]=rvArr[i]->getValV()*rooBgFrac.getValV()/(scaleFactor*summedBGFracs);
+		    //allFitVals[i]=rvArr[i]->getValV()*rooBgFrac.getValV()/(scaleFactor);
+		    //	  allFitVals[i]=rvArr[i]->getValV()/scaleFactor;
+		    if(i==xFeedIndex)
+		      cout <<" component: " << i <<" fit val: "<< allFitVals[i] << " uncert: "<< rvArr[i]->getError()<<" orig val: "<< rvArr[i]->getValV() <<endl;
+		    if(rvArr[i]->getValV()>0 && rvArr[i]->getError() >0 )
+		      {
+			//relative error
+			//
+			if(i==xFeedIndex)
+			  {
+			    cout <<"uncert on fit val: "<< rvArr[i]->getError() <<" and on bg fraction: "<< rooBgFrac.getError() <<" overal val: "<< allFitVals[i] <<" rooBGFrac: " << rooBgFrac.getValV() <<" component frac: " << rvArr[i]->getValV() <<endl;
+			    
+			    cout <<"rel error on value: "<< rvArr[i]->getError()/rvArr[i]->getValV() <<" bg: "<< rooBgFrac.getError()/rooBgFrac.getValV()<<endl;
+			    cout <<" scaleFactor: "<< scaleFactor <<" summedBGFrac: "<< summedBGFracs <<" bg over scale: "<< rooBgFrac.getValV()/scaleFactor<<endl;
+			  }
+			allFitErrs[i]=sqrt(rvArr[i]->getError()*rvArr[i]->getError()/(rvArr[i]->getValV()*rvArr[i]->getValV())+rooBgFrac.getError()*rooBgFrac.getError()/(rooBgFrac.getValV()*rooBgFrac.getValV()));
+			//allFitErrs[i]=rvArr[i]->getError()*(1-rvArr[i]->getValV());
+			//	  allFitErr[i]*=(1-rvArr[i]->getValV());
+			
+			//total error (removed scale fracto since it is already in the 'allFitVals'
+			allFitErrs[i]*=allFitVals[i];
+			//	  	  allFitErrs[i]*=rooBgFrac.getValV()/scaleFactor;
+			//	  allFitErrs[i]=rooBgFrac.getError()/(scaleFactor);
+			//allFitErrs[i]*=rvArr[i]->
+			
+		      }
+		    else
+		      {
+			allFitErrs[i]=0.0;
+			mcPredictions[i]->Scale(0.0);
+		      }
+		  }
+		else
+		  {
+		    //signal is basically the integral
+		    allFitVals[i]=rooSigFrac.getValV()/scaleFactor;
+		    allFitErrs[i]=rooSigFrac.getError()/scaleFactor;
+		  }
+		//should be true since it would otherwise not be one of the effective components
+		if(mcPredictions[i]->Integral()>0)
+		  mcPredictions[i]->Scale(data->Integral()*allFitVals[i]/mcPredictions[i]->Integral());
+	      }
+	  }
+	else
+	  {
+	    //sigIdx=1, so replace the fit values for the xFeed that we now declared as the signal. Don't do anything to the other templates
+	    //remember that the xFeed index is now the signal index...
+	    cout <<" setting xFeed Index  value " << signalIndex << " to : "<< rooSigFrac.getValV()/scaleFactor;
+	    allFitVals[signalIndex]=rooSigFrac.getValV()/scaleFactor;
+	    allFitErrs[signalIndex]=rooSigFrac.getError()/scaleFactor;
+	  }
+	    float allFracs=0;
+	    for(int i=0;i<numEffectiveComponents;i++)
+	      {
+		allFracs+=allFitVals[i];
+	      }
+	    cout<<"sum of all fractions: "<< allFracs <<endl;
+	    sprintf(buffer,"results_numP_%d_%s_%d",numPions,channelStringGlobal,pCount);
+	    result=(TH1F*)mcPredictions[0]->Clone(buffer);
+	    for(int i=1;i<numEffectiveComponents;i++)
+	      {
+		result->Add(mcPredictions[i]);
+	      }
+	
+	    cout <<" results integral : "<< result->Integral() <<endl;
+	    
+	    cout <<"deleting frames " <<endl;
+	    delete bFrame1;
+	    delete bFrame2;
+	    delete bFrame3;
+	    delete bFrame4;
+	    
+	    delete mFrame1;
+	    delete mFrame2;
+	    delete mFrame3;
+	    delete mFrame4;
+	    //delete everyting
+	    cout <<" deleting roo objects " <<endl;
+	    for(int i=0;i<numEffectiveComponents;i++)
+	      {
+		if(i!=signalIndex)
+		  {
+		    delete rvArr[i];
+		  }
+		
+		delete rooHistPdfs[i];
+		delete rooHists[i];
+	      }
+	    cout <<" done " <<endl;
+	    if(iSigIdx==0)
+	      numEffective=numEffectiveComponents;
+	    //    RooHistPdf pdf("mpdf","mpdf",);
+      }
 
 
-  fitVal/=scaleFactor;
-  fitErr/=scaleFactor;
-
-  cout <<"roo fit signal index: "<< signalIndex <<endl;
-  ////save output histograms to see that we have the right stuff...
-  sprintf(buffer, "result_numP_%d_%s",numPions,channelStringGlobal);
-  //  result=(TH1F*)templates[effectiveComponentsIndices[signalIndex]]->Clone(buffer);
-  summedBGFracs=0;
-  summedBGFracsW=0;
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      if(i!=signalIndex)
-	{
-	  //not fixed
-	  //	  if(find(fixedComponents.begin(),fixedComponents.end(),i)==fixedComponents.end())
-	    {
-	      summedBGFracs+=rvArr[i]->getValV();
-	      summedBGFracsW+=rvArr[i]->getValV()*rooBgFrac.getValV();
-	    }
-	}
-    }
-  cout <<"summedBGFracs: "<< summedBGFracs <<" weighted: "<< summedBGFracsW <<endl;
-
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      sprintf(buffer, "mcPred_%d_numP_%d_%s",i,numPions,channelStringGlobal);
-      mcPredictions[i]=(TH1F*)templates[effectiveComponentsIndices[i]]->Clone(buffer);
-      if(i!=signalIndex)
-	{
-	  //but this is relative to the bgFraction, so scale up with that and then scale down
-	  	  allFitVals[i]=rvArr[i]->getValV()*rooBgFrac.getValV()/(scaleFactor*summedBGFracs);
-		  //allFitVals[i]=rvArr[i]->getValV()*rooBgFrac.getValV()/(scaleFactor);
-	  //	  allFitVals[i]=rvArr[i]->getValV()/scaleFactor;
-	  cout <<" component: " << i <<" fit val: "<< allFitVals[i] << " uncert: "<< rvArr[i]->getError()<<endl;
-	  if(rvArr[i]->getValV()>0)
-	    {
-	      //relative error
-	    allFitErrs[i]=sqrt(rvArr[i]->getError()*rvArr[i]->getError()/(rvArr[i]->getValV()*rvArr[i]->getValV())+rooBgFrac.getError()*rooBgFrac.getError()/(rooBgFrac.getValV()*rooBgFrac.getValV()));
-	    //total error
-	    allFitErrs[i]*=allFitVals[i]/scaleFactor;
-
-	    }
-	  else
-	    {
-	      allFitErrs[i]=0.0;
-	      mcPredictions[i]->Scale(0.0);
-	    }
-	}
-      else
-	{
-	  //signal is basically the integral
-	  allFitVals[i]=rooSigFrac.getValV()/scaleFactor;
-	  allFitErrs[i]=rooSigFrac.getError()/scaleFactor;
-	}
-      //should be true since it would otherwise not be one of the effective components
-      if(mcPredictions[i]->Integral()>0)
-	mcPredictions[i]->Scale(data->Integral()*allFitVals[i]/mcPredictions[i]->Integral());
-    }
-  float allFracs=0;
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      allFracs+=allFitVals[i];
-    }
-  cout<<"sum of all fractions: "<< allFracs <<endl;
-  sprintf(buffer,"results_numP_%d_%s_%d",numPions,channelStringGlobal,pCount);
-  result=(TH1F*)mcPredictions[0]->Clone(buffer);
-  for(int i=1;i<numEffectiveComponents;i++)
-    {
-      result->Add(mcPredictions[i]);
-    }
-
-  cout <<" results integral : "<< result->Integral() <<endl;
-
-  cout <<"deleting frames " <<endl;
-  delete bFrame1;
-  delete bFrame2;
-  delete bFrame3;
-  delete bFrame4;
-
-  delete mFrame1;
-  delete mFrame2;
-  delete mFrame3;
-  delete mFrame4;
-  //delete everyting
-  cout <<" deleting roo objects " <<endl;
-  for(int i=0;i<numEffectiveComponents;i++)
-    {
-      if(i!=signalIndex)
-	{
-	  delete rvArr[i];
-	}
-
-      delete rooHistPdfs[i];
-      delete rooHists[i];
-    }
-  cout <<" done " <<endl;
-  numEffective=numEffectiveComponents;
-    //    RooHistPdf pdf("mpdf","mpdf",);
-  return rooSigFrac.getValV();
+    return retVal;
 }
 
 //other fit method where we subtract all the fixed fractions from the data and just fit the remaining
@@ -2900,6 +3044,7 @@ float getFitSignal(TH1F* data,TH1F** templates,int numTemplates,     TH1F* &resu
   int numEffectiveComponents=0;
   TObjArray *mc = new TObjArray(numTemplates);        // MC histograms are put in this array
   int signalIndex=-1;
+  int xFeedIndex=-1;
   int otherBBIndex1=-1;
   int otherBBIndex2=-1;
   int continuumIndex1=-1;
@@ -2946,6 +3091,11 @@ float getFitSignal(TH1F* data,TH1F** templates,int numTemplates,     TH1F* &resu
 	  if((string(templates[i]->GetName()).find("OtherBB")!=string::npos) && (string(templates[i]->GetName()).find("BToDStar")!=string::npos|| string(templates[i]->GetName()).find("B0ToDStar")!=string::npos))
 	    {
 	      otherBBIndex2=effectiveComponentsIndices.size();
+	    }
+	  if(string(templates[i]->GetName()).find("CrossFeed")!=string::npos)
+	    {
+	      cout <<"setting xFeedIndex to: "<< xFeedIndex <<endl;
+	      xFeedIndex=effectiveComponentsIndices.size();
 	    }
 	  if(i==SIG_IDX)
 	    {
@@ -3026,6 +3176,10 @@ float getFitSignal(TH1F* data,TH1F** templates,int numTemplates,     TH1F* &resu
 	  cout <<"now: "<< iThFraction <<endl;
 	  sumOfFractions+=iThFraction;
 	  sumOfIntegrals+=integralOfComponents[i];
+	  if(i==xFeedIndex)
+	    {
+	      gl_lastCrossFeedFraction=iThFraction;
+	    }
 	  if(i==signalIndex)
 	    {
 	      //to have some variation...
