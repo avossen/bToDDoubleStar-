@@ -18,12 +18,14 @@
 
 #include "doAnalysisCombined.h"
 
-
+extern  void loadBinning();
 //number of all 5 streams: 41510082
 
 using namespace std;
 int main(int argc, char** argv)
 {
+
+  loadBinning();
   if(argc!=8)
     {
     cout <<"argc: "<< argc<<" need six file names and numPions.." <<endl;

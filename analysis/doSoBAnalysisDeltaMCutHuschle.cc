@@ -20,10 +20,12 @@
 
 
 //number of all 5 streams: 41510082
-
+extern void loadBinning();
 using namespace std;
 int main(int argc, char** argv)
 {
+
+  loadBinning();
   if(argc!=8)
     {
     cout <<"argc: "<< argc<<" need sixfile names and numPions.." <<endl;

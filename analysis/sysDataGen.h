@@ -1,5 +1,6 @@
 #ifndef SYS_DATA_GEN
 #define SYS_DATA_GEN
+
 #include "RooPlot.h"
 #include "RooRealVar.h"
 #include "RooDataHist.h"
@@ -26,6 +27,8 @@
 
 using namespace std;
 
+#include "idx.h"
+
 class sysDataGen
 {
 
@@ -36,7 +39,7 @@ class sysDataGen
 
   void readTrees();
   //get the templates for a specific channel. At this point the channel selection cuts are made
-  TH1D** getTemplates(int channelIdx);
+  TH1D** getTemplates(int channelIdx, int leptonId, char* channelString);
 
 
   //store data in mNu2,weight and weight uncertainty tuples
@@ -48,6 +51,16 @@ class sysDataGen
     float mNu2;
     float weight;
     float eWeight; 
+
+    //the elements needed to do the channel selection
+    int mcBCharge;
+    int bestBCharge;
+    int dCharge;
+    int mcDCharge;
+    int dType;
+    int mcIsDStar;
+    int leptonId;
+
   };
 
   dataElement* pContinuum;
@@ -62,20 +75,30 @@ class sysDataGen
   dataElement* pDDStarPiCrossFeed;
   dataElement* pOtherBB;
 
+  dataElement* pData[20];
+
+  char* histoNames[20];
+
+
   TTree** mTrees;
 
-  int currentCounts[12];
+  int currentCounts[20];
 
 
  protected:
+
+  float getWeight();
+  float getWeightUncertainty();
 
   bool isContinuum();
       //iDDStar
   bool isDDStar();
       //DDStarPi
   bool isDDStarPi();
+
+
       //DDStarPiWrongChannel
-  bool isDDStarPiWrongChannel();
+  //  bool isDDStarPiWrongChannel();
       
       //DDStarPiPi
   bool isDDStarPiPi();
@@ -89,7 +112,7 @@ class sysDataGen
   bool isDStarPiPiLNu();
 
       //DDStarPiCrossFeed
-  bool isDDStarPiCrossFeed();
+  //  bool isDDStarPiCrossFeed();
 
       //OtherBB
   bool isOtherBB();

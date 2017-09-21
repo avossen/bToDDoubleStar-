@@ -30,6 +30,9 @@
 
 #include "TFractionFitter.h"
 #include "doAnalysisCombined.h"
+#include "fetchData.h"
+#include "sysDataGen.h"
+
 
 using namespace std;
 void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions=2, int leptonId=0);
@@ -53,8 +56,42 @@ void addCorrections(char* buffer);
 const int gl_numComponents=11;
 const int gl_numFiles=4;
 
+
 int main(int argc, char** argv)
 {
+
+
+  //initialize external vars
+#ifdef PARTIAL_BOX
+    //={40,20,30,20,20};
+  numBins[0]=40;
+  numBins[1]=20;
+  numBins[2]=30;
+  numBins[3]=20;
+  numBins[4]=20;
+
+
+#else
+  //  numBins={140,140,70,140,70};
+  numBins[0]=140;
+  numBins[1]=140;
+  numBins[2]=70;
+  numBins[3]=140;
+  numBins[4]=70;
+#endif
+  //  upperCut={2.0,2.0,0.6,2.0,0.6};
+  //  lowerCut={-0.5,-0.3,-0.3,-0.3,-0.3};
+  upperCut[0]=2.0;
+  upperCut[1]=2.0;
+  upperCut[2]=0.6;
+  upperCut[3]=2.0;
+  upperCut[4]=0.6;
+  lowerCut[0]=-0.5;
+  lowerCut[1]=-0.3;
+  lowerCut[2]=-0.3;
+  lowerCut[3]=-0.3;
+  lowerCut[4]=-0.3;
+
   for(int i=0;i<7;i++)
     {
       gl_xFeedFraction[i]=-1;
@@ -234,11 +271,19 @@ int main(int argc, char** argv)
       channelsUnderConsideration.push_back(5);
   //channel
   //    for(int iC=-1;iC<4;iC++)
-
       TH1F sbChi2("sb_chi2","sb_chi2",20,0,2);
-
-
       TH1F* data[7];
+
+      sysDataGen sys(trees);
+      cout <<"constructed sysData " <<endl;
+      sys.readTrees();
+      cout <<"done reading trees... " << endl;
+      //test with BToD
+      char tmpBuffer[200];
+      getChannelString(1,tmpBuffer);
+      TH1D** ret=sys.getTemplates(1,0,tmpBuffer);
+
+
   for(vector<int>::iterator it=channelsUnderConsideration.begin();it!=channelsUnderConsideration.end();it++)
     {
       cout <<"looking at channel " << (*it) <<endl;
@@ -828,328 +873,670 @@ int main(int argc, char** argv)
 
 }
 
+void copyHisto(TH1* first, TH1* out, int numBins, int maxBins,int shift)
+{
+
+  for(int iBin=1;iBin<=shift;iBin++)
+    {
+      out->SetBinContent(iBin,0);
+      out->SetBinError(iBin,0);
+    }
+  for(int iBin=1;iBin<=numBins;iBin++)
+    {
+      int index=iBin+shift;
+      out->SetBinContent(index,first->GetBinContent(iBin));
+      out->SetBinError(index,first->GetBinError(iBin));
+    }
+  for(int iBin=numBins+shift+1;iBin<=maxBins;iBin++)
+    {
+      out->SetBinContent(iBin,0);
+      out->SetBinError(iBin,0);
+    }
 
 
-///void doAnalysis(char* fileNameMixed, char* fileNameCharged, char* fileNameUds, char* fileNameCharm, int numPions, int leptonId)
-//-->see git repository history
-/////{
-/////  /*
-/////    we have 4 data files, the two B MCs, charm and uds. For each we extract DDouble star +0,1,2 Pions, as well as the Dlnu +0,1,2 pions, 
-/////    and the rest
-/////
-/////    We do this for the 0,1,2 pions in the final state
-/////
-/////    The selection criteria are 
-/////    i) The correct final state has to be reconstructed
-/////    ii) The correct 
-/////
-/////  */
-/////  char* fileNames[4];
-/////  char* legendNames[10];
-/////
-/////  char* allLegendNames[10];
-/////
-/////  fileNames[0]=new char[500];
-/////  fileNames[1]=new char[500];
-/////  fileNames[2]=new char[500];
-/////  fileNames[3]=new char[500];
-/////
-/////  THStack all;
-/////  TH1F* hContinuum=new TH1F("continuum","continuum",numBins,lowerCut,upperCut);
-/////  TH1F* hDDStar=new TH1F("DDStar","DDstar",numBins,lowerCut,upperCut);
-/////  TH1F* hDDStarPi=new TH1F("DDStarPi","DDstarPi",numBins,lowerCut,upperCut);
-/////  TH1F* hDDStarPiPi=new TH1F("DDStarPiPi","DDStarPiPi",numBins,lowerCut,upperCut);
-/////  TH1F* hDlNu=new TH1F("DLnu","DlNu",numBins,lowerCut,upperCut);
-/////  TH1F* hDPilNu=new TH1F("DPiLNu","DPiLNu",numBins,lowerCut,upperCut);
-/////  TH1F* hDPiPilNu=new TH1F("DPiPiLNu","DPiPiLNu",numBins,lowerCut,upperCut);
-/////  TH1F* hDStarlNu=new TH1F("DStarLNu","DStarLNu",numBins,lowerCut,upperCut);
-/////  TH1F* hDStarPilNu=new TH1F("DStarPiLNu","DStarPiLNu",numBins,lowerCut,upperCut);
-/////  TH1F* hDStarPiPilNu=new TH1F("DStarPiPiLNu","DStarPiPiLNu",numBins,lowerCut,upperCut);
-/////  TH1F* hOtherBB=new TH1F("OtherBB","OtherBB",numBins,lowerCut,upperCut);
-/////
-/////  TH1F* summedHistos[9];
-/////  summedHistos[0]=hContinuum;
-/////  summedHistos[1]=hOtherBB;
-/////  summedHistos[2]=hDDStar;
-/////
-/////  summedHistos[3]=hDDStarPiPi;
-/////  summedHistos[4]=hDlNu;
-/////  //  summedHistos[5]=hDPilNu;
-/////  summedHistos[5]=hDPiPilNu;
-/////  summedHistos[6]=hDStarlNu;
-/////  //  summedHistos[8]=hDStarPilNu;
-/////  summedHistos[7]=hDStarPiPilNu;
-/////  summedHistos[8]=hDDStarPi;  
-/////
-/////
-/////
-/////  for(int i=0;i<9;i++)
-/////    {
-/////      legendNames[i]=new char [200];
-/////      allLegendNames[i]=new char[200];
-/////    }
-/////
-/////  sprintf(legendNames[0],"B #rightarrow D Double Star l #nu(no Dn#pi l#nu non-res)");
-/////  sprintf(legendNames[1],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi (no Dn#pi l#nu nonresonant)");
-/////  sprintf(legendNames[2],"B #rightarrow Double Star X #rightarrow D^{(*)} #pi #pi (no Dn#pi l#nu nonresonant)");
-/////  sprintf(legendNames[3],"D l #nu");
-/////  // sprintf(legendNames[4],"D #pi l #nu");
-/////  sprintf(legendNames[4],"D #pi #pi l #nu");
-/////
-/////  sprintf(legendNames[5],"D* l #nu");
-/////  //  sprintf(legendNames[7],"D* #pi l #nu");
-/////  sprintf(legendNames[6],"D* #pi #pi l #nu");
-/////  sprintf(legendNames[7]," no D(*)n #pi l#nu ");
-/////  sprintf(legendNames[8]," no Selection");
-/////
-/////
-/////
-/////
-/////  sprintf(allLegendNames[0],"Continuum");
-/////  sprintf(allLegendNames[1]," other B B ");
-/////  sprintf(allLegendNames[2],"B #rightarrow D Double Star X #rightarrow D^{(*)}");
-/////
-/////  sprintf(allLegendNames[3],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi #pi");
-/////  sprintf(allLegendNames[4],"D l #nu");
-/////  //sprintf(allLegendNames[4],"D #pi l #nu");
-/////  sprintf(allLegendNames[5],"D #pi #pi l #nu");
-/////
-/////  sprintf(allLegendNames[6],"D* l #nu");
-/////  //  sprintf(allLegendNames[8],"D* #pi l #nu");
-/////  sprintf(allLegendNames[7],"D* #pi #pi l #nu");
-/////  sprintf(allLegendNames[8],"B #rightarrow D Double Star X #rightarrow D^{(*)} #pi");
-/////
-/////
-/////  sprintf(fileNames[0],"mixed");
-/////  sprintf(fileNames[1],"charged");
-/////  sprintf(fileNames[2],"uds");
-/////  sprintf(fileNames[3],"charm");
-/////
-/////  TFile* files[4];
-/////  TTree* trees[4];
-/////
-/////  files[0]=new TFile(fileNameMixed);
-/////  files[1]=new TFile(fileNameCharged);
-/////  files[2]=new TFile(fileNameUds);
-/////  files[3]=new TFile(fileNameCharm);
-/////
-/////
-/////  TH1F** histos[4];
-/////  for(int i=0;i<4;i++)
-/////    {
-/////      histos[i]=new TH1F*[7];
-/////    }
-/////
-/////
-/////  for(int i=0;i<4;i++)
-/////    {
-/////      trees[i] = (TTree*)files[i]->Get("DataTree");
-/////      if(!trees[i])
-/////	cout <<"tree " << i << " is NULL" <<endl;
-/////    }
-/////
-/////  //  dataTree->Draw(" >> result")
-/////  //  TH1F* result=(TH1F*) gDirectory->Get("result");
-/////
-/////  //selection for the data
-/////
-/////  //numRecPions  
-/////  //  recDecaySignature==true   //recDecay signature found
-/////
-/////  // get mNu2 for d double star decays
-/////
-/////
-/////  //this is for all the same, the selection of the data. It can be 0, one or two pions
-/////
-/////  char* selections[9];
-/////
-/////  char buffer[2000];
-/////
-/////  char bufferDDStar[2000];
-/////  char bufferDDStarPi[2000];
-/////  char bufferDDStarPiPi[2000];
-/////
-/////  char bufferDlNu[2000];
-/////  char bufferDPilNu[2000];
-/////  char bufferDPiPilNu[2000];
-/////
-/////  char bufferDStarlNu[2000];
-/////  char bufferDStarPilNu[2000];
-/////  char bufferDStarPiPilNu[2000];
-/////
-/////  char bufferAll[2000];
-/////  char bufferNoSelection[2000];
-/////
-/////  selections[0]=bufferDDStar;
-/////  selections[1]=bufferDDStarPi;
-/////  selections[2]=bufferDDStarPiPi;
-/////  selections[3]=bufferDlNu;
-/////  //  selections[4]=bufferDPilNu;
-/////  selections[4]=bufferDPiPilNu;
-/////  selections[5]=bufferDStarlNu;
-/////  //  selections[7]=bufferDStarPilNu;
-/////  selections[6]=bufferDStarPiPilNu;
-/////  selections[7]=bufferAll;
-/////  selections[8]=bufferNoSelection;
-/////
-/////  if(leptonId!=0)
-/////    {
-/////      //      sprintf(buffer,"tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d  ",numPions,leptonId);
-/////      addCorrections(buffer);
-/////      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && abs(leptonId)==%d  ",buffer,upperCut,lowerCut,numPions,leptonId);
-/////    }
-/////  else
-/////    {
-/////      //      sprintf(buffer,"CrossSectionLumiCorrection*tagCorr*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0  && bestBCharge==((-1)*systemCharge) ",numPions);
-/////      addCorrections(buffer);
-/////      sprintf(buffer,"%s tagCorr*(mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0   ",buffer,upperCut,lowerCut,numPions);
-/////    }
-/////  sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1 && sig_numPions==0 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1 && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
-/////  //sprintf(bufferDDStar,"%s && foundAnyDDoubleStar==1)",buffer);
-/////  sprintf(bufferDDStarPi,"%s && foundAnyDDoubleStar==1 && sig_numPions==1 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1&& !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
-/////  sprintf(bufferDDStarPiPi,"%s && foundAnyDDoubleStar==1 && sig_numPions==2 && sig_numKaons==0 && sig_numPi0==0 && sig_numBaryons==0&& sig_numLeptons==1&& !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
-/////
-/////  sprintf(bufferDlNu,"%s && sig_DLNu )",buffer);
-/////  sprintf(bufferDPilNu,"%s && sig_DPiLNu&& !sig_DLNu  )",buffer);
-/////  sprintf(bufferDPiPilNu,"%s && sig_DPiPiLNu && !sig_DLNu && !sig_DPiLNu)",buffer);
-/////  sprintf(bufferDStarlNu,"%s &&  sig_DStarLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu)",buffer);
-/////  sprintf(bufferDStarPilNu,"%s  && sig_DStarPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu)",buffer);
-/////  sprintf(bufferDStarPiPilNu,"%s  && sig_DStarPiPiLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu)",buffer);
-/////
-/////  sprintf(bufferAll,"%s && (!foundAnyDDoubleStar|| sig_numKaons!=0 || sig_numPi0!=0 || sig_numBaryons!=0 || sig_numLeptons!=1 || sig_numPions > 2 || sig_DLNu || sig_DPiLNu|| sig_DPiPiLNu || sig_DStarLNu || sig_DStarPiLNu|| sig_DStarPiPiLNu) && !sig_DLNu && !sig_DPiLNu && !sig_DPiPiLNu && !sig_DStarLNu && !sig_DStarPiLNu && !sig_DStarPiPiLNu)",buffer);
-/////
-/////  sprintf(bufferNoSelection,"%s)",buffer);
-/////  //    sprintf(bufferAll,"%s)",buffer);
-/////
-/////
-/////  cout <<"selection for DDstar: "<< bufferDDStar <<endl<<" DDstarPi: "<< bufferDDStarPi<<endl<< " DDstarPiPi: "<< bufferDDStarPiPi <<endl;
-/////  cout <<" DlNu: " << bufferDlNu<<endl <<" DPilNu:"<< bufferDPilNu << endl << " DPiPilNu: "<< bufferDPiPilNu <<endl;
-/////  cout <<" all: "<< bufferAll <<endl;
-/////
-/////
-/////  char histoName[2009];
-/////  char drawCommand[2000];
-/////  char outFileName[2000];
-/////
-/////  THStack* stacks[4];
-/////
-/////
-/////
-/////  TColor* colorTable[9];
-/////  colorTable[0]=gROOT->GetColor(kBlue);
-/////  colorTable[1]=gROOT->GetColor(kRed);
-/////  colorTable[2]=gROOT->GetColor(kCyan);
-/////  colorTable[3]=gROOT->GetColor(kMagenta);
-/////  //  colorTable[4]=gROOT->GetColor(kGreen);
-/////  colorTable[4]=gROOT->GetColor(kBlack);
-/////  colorTable[5]=gROOT->GetColor(kWhite);
-/////  colorTable[6]=gROOT->GetColor(kGray);
-/////  //  colorTable[8]=gROOT->GetColor(kViolet);
-/////  colorTable[7]=gROOT->GetColor(kYellow);
-/////  colorTable[8]=gROOT->GetColor(kTeal);
-/////
-/////
-/////  for(int iF=0;iF<4;iF++)
-/////    {
-/////      char bufferF[200];
-/////      sprintf(bufferF,"stackF_%d",iF);
-/////      stacks[iF]=new THStack(bufferF,bufferF);
-/////      TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
-/////      int allCounts=0;
-/////      for(int b=0;b<9;b++)
-/////	{
-/////	  sprintf(histoName,"histo_If_%d_b_%d",iF,b);
-/////	  sprintf(drawCommand,"mNu2 >> %s(%d,%f,%f)",histoName,numBins,lowerCut,upperCut);
-/////	  sprintf(outFileName,"%s.png",histoName);
-/////	  cout <<"draw command: " << drawCommand << ", selections: " << (char*) selections[b]<<endl;
-/////	  cout <<"drawing tree " << iF <<endl;
-/////	  int counts=trees[iF]->Draw(drawCommand,(char*)selections[b]);
-/////	  if(b<10)
-/////	    allCounts+=counts;
-/////	  if(b==10)
-/////	    cout <<"all counts so far: "<< allCounts <<" no selection counts: "<< counts <<" difference: "<< counts-allCounts <<endl;
-/////	  cout <<"got " << counts <<" counts selected " <<endl;
-/////	  TH1F* result=(TH1F*)gDirectory->Get(histoName);
-/////	  result->SetFillColor(colorTable[b]->GetNumber());
-/////
-/////	  if(b!=10)
-/////	    {
-/////	      if(iF>=2)
-/////		{
-/////		  hContinuum->Add(result);
-/////		  hContinuum->SetFillColor(colorTable[10]->GetNumber());
-/////		}
-/////		
-/////	      if(iF<2)
-/////		{
-/////		  summedHistos[b+1]->Add(result);
-/////		  //for the color, make it consistent to the other stacks
-/////		  summedHistos[b]->SetFillColor(colorTable[b]->GetNumber());
-/////		}
-/////	    }
-/////
-/////	  if(counts>0)
-/////	    {
-/////	      //why is the other B,B not in here?
-/////	      if(b==10)
-/////		{
-/////		  //		  stacks[iF]->Add(result,"nostack");
-/////		  //		legend->AddEntry(result,legendNames[b],"f");
-/////		}
-/////	      else
-/////		{
-/////		  stacks[iF]->Add(result);
-/////		  legend->AddEntry(result,legendNames[b],"f");
-/////		}
-/////	    }
-/////	  if(!result)
-/////	    {
-/////	      cout <<"null pointer returned" <<endl;
-/////	    }
-/////	  else
-/////	    {
-/////	      TCanvas c;
-/////	      result->Draw();
-/////	      c.Update();
-/////	      c.SaveAs(outFileName);
-/////	    }
-/////	}
-/////
-/////      char stackName[200];
-/////
-/////      TCanvas c2;
-/////
-/////      sprintf(stackName,"Stack_%s_%d pions ",fileNames[iF],numPions);
-/////      stacks[iF]->SetTitle(stackName);
-/////      stacks[iF]->Draw();
-/////      legend->Draw();
-/////      c2.Update();
-/////      stacks[iF]->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
-/////      c2.Modified();
-/////      sprintf(stackName,"Stack_%s_%d_pions.png",fileNames[iF],numPions);
-/////      c2.SaveAs(stackName);
-/////    }
-/////
-/////  TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
-/////  for(int i=0;i<9;i++)
-/////    {
-/////      all.Add(summedHistos[i]);
-/////      legend->AddEntry(summedHistos[i],allLegendNames[i],"f");
-/////    }
-/////  TCanvas c;
-/////  sprintf(buffer,"All_%d_pions",numPions);
-/////  all.SetTitle(buffer);
-/////  all.Draw();
-/////  legend->Draw();
-/////  c.Update();
-/////  all.GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
-/////  c.Modified();
-/////  sprintf(buffer,"All_%d_pions.png",numPions);
-/////  c.SaveAs(buffer);
-/////
-/////  //the cases where a D** was found in the MC is treated differently from the regular D(*)pipi in data
-/////  //     foundAnyDDoubleStar==true  
-/////}
+}
+void addShiftedHistos(TH1* first, TH1* second, TH1* out, int numBins1, int numBins2)
+{
+  for(int iBin=1;iBin<=numBins1;iBin++)
+    {
+      out->SetBinContent(iBin,first->GetBinContent(iBin));
+      out->SetBinError(iBin,first->GetBinError(iBin));
+    }
+  for(int iBin=numBins1+1;iBin<=(numBins1+numBins2);iBin++)
+    {
+      //jaja.... should be zero, could be ommitted
+      out->SetBinContent(iBin,second->GetBinContent(iBin-numBins1));
+      out->SetBinError(iBin,second->GetBinError(iBin-numBins1));
+    }
+}
+
+
+void getDataFromMC(TH1F* &data, int channel, int numPions, int leptonId, TH1F** summedComponents, int numComponents)
+{
+  char channelString[1000];
+  char histoName[2009];
+  getChannelString(channel,channelString);
+  sprintf(histoName,"histo_Data_%d_pions_%d_leptonId_treeNr%d_%s",numPions,leptonId,0, channelString);
+  data=(TH1F*) summedComponents[0]->Clone(histoName);
+   for(int i=1;i<numComponents;i++)
+     {
+       data->Add(summedComponents[i]);
+     }
+}
+
+void getTemplates(TH1F** summedComponents_in, TH1F** &templates, char** templateLegendNames, char** allLegendNames, int numComponents, int& numMergers, int numPions,int oneIdx,bool combineDPiPi)
+{
+  char buffer[3000];
+  //should be only 10 (or num components, this is just for safety)
+
+  for(int i=0;i<numComponents;i++)
+    {
+      templateLegendNames[i]=new char[300];
+    }
+
+
+  //set to the pionId 1 to merge components...
+
+
+  ///make new templates that take into account that some contributions look the same, so probably create problems while fitting
+  //same shape combination would be 5 with 7 (only one merger) --> alternatively used 4 mergers 5, 6, 7, 8,9 where all the others have small statistics
+  numMergers=0;
+  if(numPions==oneIdx)
+    //    numMergers=1;
+    //from the code it looks like two mergers
+    numMergers=2;
+  if(combineDPiPi)
+    {
+      numMergers=2;
+    }
+    //    numMergers=4;
+
+  templates=new TH1F*[numComponents-numMergers];
+  //  fillTemplates(templates,summedComponents,templateLegendNames,numPions);
+  cout <<"filling " << numComponents-numMergers << " templates " <<endl;
+
+  if(numPions==oneIdx)
+    {
+      for(int i=0;i<5;i++)
+	{
+	  templates[i]=summedComponents_in[i];
+	  templateLegendNames[i]=allLegendNames[i];
+	  cout <<"filled template " << i <<endl;
+	}
+      sprintf(buffer,"%s_clonedAgain",summedComponents_in[5]->GetName());
+      templates[5]=(TH1F*)summedComponents_in[5]->Clone(buffer);
+      templates[5]->Add(summedComponents_in[6]);
+      templates[5]->Add(summedComponents_in[7]);
+      //           templates[5]->Add(summedComponents[8]);
+      //      templates[5]->Add(summedComponents[9]);
+
+      //      sprintf(buffer,"%s plus %s and %s and  %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7],allLegendNames[8], allLegendNames[9]);
+      sprintf(buffer,"%s plus %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7]);
+      templates[5]->SetTitle(buffer);
+      sprintf(templateLegendNames[5],"%s",buffer);
+      //            templates[6]=summedComponents[6];
+      //      templateLegendNames[6]=allLegendNames[6];
+      //      for(int i=10;i<numComponents;i++)
+      for(int i=8;i<numComponents;i++)
+	{
+	  templates[i-numMergers]=summedComponents_in[i];
+	  templateLegendNames[i-numMergers]=allLegendNames[i];
+	  cout <<"filling template " << i-numMergers <<endl;
+	}
+    }
+  else{
+    if(combineDPiPi)
+      {
+       for(int i=0;i<4;i++)
+	{
+	  templates[i]=summedComponents_in[i];
+	  templateLegendNames[i]=allLegendNames[i];
+	  cout <<"filled template " << i <<endl;
+	}
+      sprintf(buffer,"%s_clonedAgain",summedComponents_in[4]->GetName());
+      templates[4]=(TH1F*)summedComponents_in[4]->Clone(buffer);
+      templates[4]->Add(summedComponents_in[6]);
+      templates[4]->Add(summedComponents_in[8]);
+      //           templates[5]->Add(summedComponents[8]);
+      //      templates[5]->Add(summedComponents[9]);
+
+      //      sprintf(buffer,"%s plus %s and %s and  %s and %s",allLegendNames[5],allLegendNames[6],allLegendNames[7],allLegendNames[8], allLegendNames[9]);
+      sprintf(buffer,"%s plus %s and %s",allLegendNames[4],allLegendNames[6],allLegendNames[8]);
+      templates[4]->SetTitle(buffer);
+      sprintf(templateLegendNames[4],"%s",buffer);
+      //            templates[6]=summedComponents[6];
+      //      templateLegendNames[6]=allLegendNames[6];
+      //      for(int i=10;i<numComponents;i++)
+      templates[5]=summedComponents_in[5];
+      templateLegendNames[5]=allLegendNames[5];
+      templates[6]=summedComponents_in[7];
+      templateLegendNames[6]=allLegendNames[7];
+      //already got [8] (added to 4), so next up is 7 <-- 9
+      for(int i=9;i<numComponents;i++)
+	{
+	  templates[i-numMergers]=summedComponents_in[i];
+	  //names are the same for the DStar stuff
+	  templateLegendNames[i-numMergers]=allLegendNames[i];
+	  cout <<"filling template " << i-numMergers <<endl;
+	}
+
+      }
+  else
+    {
+      for(int i=0;i<numComponents;i++)
+	{
+	  templates[i]=summedComponents_in[i];
+	  templateLegendNames[i]=allLegendNames[i];
+	}
+    }
+  }
+  //////
+}
+
+
+
+
+
+/*
+get the histogram we want to fit from the tree (given numPions and leptonId), fit with the fractions from 'summedComponents'
+
+ */
+void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId, int channel, bool dataTree, bool addNoise, TH1D* pulls,TH1D* pullsFeedDown)
+{
+  char channelString[500];
+  getChannelString(channel,channelString);
+  cout <<"fitting amplitude for channel " << channelString <<endl;
+  //since we name one of the channels -1
+  int channelIdx=channel+1;
+  //these scale
+   cout <<"using scale factor " << gl_templateScaleFactor <<endl;
+   for(int i=0;i<numComponents;i++)
+     {
+       cout <<"running over comp " << i <<" integral: " << summedComponents[i]->Integral()<<endl;
+       summedComponents[i]->Sumw2();
+       (*summedComponents)->SetFillStyle(1001);
+       cout <<"after scale "  << summedComponents[i]->Integral()<<endl;
+     }
+
+   cout <<"using scale factor: "<< gl_templateScaleFactor <<endl;
+  TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
+  cout <<"fit fractions with " << numComponents <<" components"<<endl;
+
+  char histoName[2009];
+  char drawCommand[2000];
+  char buffer[2000];
+  char corrBuffer[2000];
+  int minCounts=0;
+  ///// Used for Analysis note:  int fixThresholdCounts=300;
+#ifdef PARTIAL_BOX
+  //probably doesn't make sense to have different thresholds for partial_box because these are the counts of the templates
+  int fixThresholdCounts=100;
+#else
+      int fixThresholdCounts=300;
+  //    int fixThresholdCounts=3000;
+  if(numPions==0)
+    fixThresholdCounts=400;
+
+#endif
+  //  if(leptonId>0)
+  //    fixThresholdCounts=1000;
+  char* templateLegendNames[50];
+  //pointer given as reference and then allocated in 'getTemplates'
+  TH1F** templates;
+  //given to 'getTemplates' as reference
+  int numMergers=0;
+
+  //test here if the number of counts before and after is teh same
+  float templateIntegral=0;
+  int numTemplateEntries=0;
+  for(int i=0;i<numComponents;i++)
+    {
+      templateIntegral+=summedComponents[i]->Integral();
+      numTemplateEntries+=summedComponents[i]->GetEntries();
+    }
+  cout <<"template integral before summing combining: "<< templateIntegral<<", entries: "<< numTemplateEntries<<endl;
+  getTemplates(summedComponents, templates, templateLegendNames, allLegendNames, numComponents, numMergers,numPions, oneIdx,combineDPiPi);
+  templateIntegral=0;
+  numTemplateEntries=0;
+  for(int i=0;i<numComponents-numMergers;i++)
+    {
+      templateIntegral+=templates[i]->Integral();
+      numTemplateEntries+=summedComponents[i]->GetEntries();
+    }
+  cout <<"and after combining: "<< templateIntegral<<", entries: "<< numTemplateEntries<< endl;
+  cout <<"did set up " << numComponents-numMergers << " templates" <<endl;
+
+  //to save counts so we can fix the components which have too little counts
+  vector<int> countsOfComponents;
+  vector<int> countsOfComponents2;
+  vector<int>  indexOfEffComp;
+  ////from the example on the root web pages..
+
+  //SIG_IDX is the index of the template that gives the signal we are after
+  cout <<" done making data ..  sig ids: "<< SIG_IDX <<endl;
+  cout <<"data integral: " << data->Integral() <<endl;
+  cout <<"done with 2nd integral"<<endl;
+
+  //this is a rough initial guess
+  ////---
+  double signalFraction=gl_templateScaleFactor*templates[SIG_IDX]->Integral()/data->Integral();
+  double crossFeedFraction=0;
+  //  gl_templateScaleFactor=templates[iDDStarPiCrossFeed-2]->Integral()/data->Integral();
+
+  cout <<"for BR, signal for channel " << channel<< "  in MC is : " << templates[SIG_IDX]->Integral() <<endl;;
+  cout <<"we have " << numComponents <<" components, " << numMergers <<" mergers, so overall: "<< numComponents-numMergers << " templates"<<endl;
+  cout <<" we think that the cross feed has index " << iDDStarPiCrossFeed-2 << " and that its integral is " <<      templates[iDDStarPiCrossFeed-2]->Integral() <<endl;
+
+  double mcSignalIntegral=templates[SIG_IDX]->Integral();
+  ///---
+
+  double mcSignalIntegralCrossFeed=0;
+  if(channel>3)
+    {
+      //get templates merges templates, so the index has to be reduced by the number of mergers (should be 2)
+      mcSignalIntegralCrossFeed=templates[iDDStarPiCrossFeed-2]->Integral();
+      cout <<"mc signal int cross feed: "<< mcSignalIntegralCrossFeed <<endl;
+    }
+  cout <<"signal Fraction estimated to be : " << signalFraction<<endl;
+  cout <<"add noise? " << addNoise <<endl;
+  getChannelString(channel,channelStringGlobal);
+  glChannelIdx=channelIdx;
+  
+  double fitVal, fitErr;
+  cout<<"trying usual fit function: " << endl;
+  double* allFitVals=new double[numComponents-numMergers];
+  double* allFitErrs=new double[numComponents-numMergers];
+  int numEffective=0;
+  //shouldn't this be the main fit? Or is there another fit by hand later on
+  vector<int> _effectiveComponentsIndices;
+  int _status=0;
+  cout <<"data integral first: "<< data->Integral() <<" data entries: "<< data->GetEntries()<<endl;
+  TH1F* result;
+  TH1F* mcPredictions[100];
+  //    TH1F* result = (TH1F*) _fit->GetPlot();
+#ifdef DO_ROO_FIT
+    double S=getFitSignal_RooFit(data,templates,numComponents-numMergers,result,mcPredictions,fitVal, fitErr, fixThresholdCounts,allFitVals, allFitErrs, numEffective,_effectiveComponentsIndices,_status, numPions);  
+#else
+    double S=getFitSignal(data,templates,numComponents-numMergers,result,mcPredictions,fitVal, fitErr, fixThresholdCounts,allFitVals, allFitErrs, numEffective,_effectiveComponentsIndices,_status, numPions);  
+#endif
+    float fitSum=0.0;
+    float tempIntegral=0.0;
+    for(int i=0;i<numEffective;i++)
+      {
+	fitSum+=allFitVals[i];
+	tempIntegral+=templates[i]->Integral();
+      }
+
+    cout <<"sum of all fractions: " << fitSum <<", templates: " << tempIntegral <<endl;
+    float templateSignalFraction=gl_lastSignalFraction;
+    float templateCrossFeedFraction=gl_lastCrossFeedFraction;
+
+  //  float signalFraction=templates[SIG_IDX]/data->Integral();
+
+  cout <<"got " << fitVal*data->Integral() << " signal counts, fraction: " << fitVal << " +- " << fitErr  << endl;
+  /////-----------------
+  //void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents)
+  if(addNoise)
+    {
+      //scale data by 0.2 since otherwise it is the sum of the 5 streams...
+      //	data->Scale(0.2);
+      //-->do this in the 'performFractionFit... function'
+      int maxIterations=4000;
+      if(glChannelIdx<5)
+      {
+      	maxIterations=1;
+      }
+
+      for(int nIt=0;nIt<maxIterations;nIt++)
+	{
+	  float locSignalFraction=signalFraction;
+	  float locCrossFeedFraction=crossFeedFraction;
+	  if(glChannelIdx<5 && gl_signalFraction[glChannelIdx]>0)
+	    {
+	      locSignalFraction=gl_signalFraction[glChannelIdx];
+	      locCrossFeedFraction=gl_xFeedFraction[glChannelIdx];
+	    }
+	  if(glChannelIdx==5 && gl_signalInt[1]>0 && gl_dataInt[1]>0 && gl_dataInt[2]>0)
+	    {
+	      locSignalFraction=gl_signalInt[1]/(gl_dataInt[1]+gl_dataInt[2]);
+	      //D* channel signal is crossfeed for the combined case
+	      locCrossFeedFraction=(gl_xFeedInt[1]+gl_signalInt[2])/(gl_dataInt[1]+gl_dataInt[2]);
+	    }
+	  if(glChannelIdx==5 && gl_signalInt[3]>0 && gl_dataInt[3]>0 && gl_dataInt[4]>0)
+	    {
+	      locSignalFraction=gl_signalInt[3]/(gl_dataInt[3]+gl_dataInt[4]);
+	      locCrossFeedFraction=(gl_xFeedInt[3]+gl_signalInt[4])/(gl_dataInt[3]+gl_dataInt[4]);
+	    }
+	  cout <<"locSignalFraction: "<< locSignalFraction <<" template signal fraction: " << templateSignalFraction<<endl;
+	  //let's try this:
+#ifdef GENERATE_SINGLE_STREAM
+	  locSignalFraction=templateSignalFraction;
+	  locCrossFeedFraction=templateCrossFeedFraction;
+#endif
+	  performFractionFitStabilityTest(templates,data,numComponents-numMergers,pulls,pullsFeedDown, locSignalFraction, locCrossFeedFraction,fixThresholdCounts, numPions);
+	}
+    }
+  /////////-----------done with the fraction stability test (pulls etc)
+
+  TCanvas sampleData;
+  data->Draw();
+  sampleData.SaveAs("sampleData.png");
+  sampleData.SaveAs("sampleData.pdf");
+  sampleData.SaveAs("sampleData.eps");
+  
+  int numEffectiveComponents=0;
+  cout << " status: "<< _status <<endl;
+  if (_status == 0) {                       // check on fit status
+    TCanvas c;
+    cout <<"grabbing result .." <<endl;
+    double templatePredIntegral=result->Integral();
+    cout <<" done " <<endl;
+    data->Draw("Ep");
+    result->Draw("same");
+    sprintf(buffer,"fracFit_numPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+    sprintf(buffer,"fracFit_numPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+    sprintf(buffer,"fracFit_numPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+    //and do this for all parameters:
+    sprintf(buffer,"fracFitComp_numPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelString);
+    THStack* predComponents=new THStack(buffer,buffer);
+    //    cout <<"fraction fitter has " << _fit->GetFitter()->GetNumberFreeParameters() << " free and " << _fit->GetFitter()->GetNumberTotalParameters() <<" overall parameters" <<endl;
+    //we want to flip the signal (index =2 ) so that it is later
+    int signalIdx=-1;
+    int signalIdxCrossFeed=-1;
+    //has to sum to 1.0
+    double totalFraction=0.0;
+    double integralResult=result->Integral();
+    cout <<"fit integral: "<< integralResult <<" data integral: " << data->Integral() <<endl;
+    //double integralRe2=data->Integral();
+
+    double sumOfCompInts=0.0;
+
+    for(int i=0;i<numEffective;i++)
+      {
+	if(_effectiveComponentsIndices[i]!=SIG_IDX)
+	  {
+	    // TH1F* mcComp=(TH1F*) _fit->GetMCPrediction(i);
+
+	    TH1F* mcComp=mcPredictions[i];
+	    double mcPredInt=mcComp->Integral();
+	    sumOfCompInts+=mcPredInt;
+	    if(allFitVals[i]>0)
+	      {
+		/////
+		//by using the mcPredInt, which, even for fixed ratios contains apparently poission fluctuations, we are not guaranteed to get fixed scalefactors for fixed components back
+		////
+		cout <<"xa looking at effective component " << i <<" integralResult: " << integralResult <<" mcPredInt: "<< mcPredInt <<" firstr ratio: "<< integralResult/mcPredInt <<" fit val: "<< allFitVals[i] <<endl;
+		float scaleFact=integralResult/mcPredInt*allFitVals[i];
+		//		scaleFact/=sumOfFractions;
+		cout <<"scaling mccomp2 by : "<<scaleFact<<endl;
+		totalFraction+=allFitVals[i];
+		mcComp->Scale(scaleFact);
+	      }
+	    mcComp->SetFillStyle(1001);
+	    mcComp->SetFillColor(glColorTable[_effectiveComponentsIndices[i]]->GetNumber());
+	    predComponents->Add(mcComp);
+	    cout <<"add as : " << templateLegendNames[_effectiveComponentsIndices[i]]<<endl;
+	    legend->AddEntry(mcComp,templateLegendNames[_effectiveComponentsIndices[i]],"f" );
+	  }
+	else
+	  {
+	    signalIdx=i;
+	  }
+	//again, some of the templates are merged, so there is a shift by 2 in the indices
+	if(_effectiveComponentsIndices[i]==(iDDStarPiCrossFeed-2))
+	  {
+	    cout << " setting cross feed index to : "<< i <<endl;
+	    signalIdxCrossFeed=i;
+	  }
+      }
+    //add the signal last...
+    if(signalIdx>=0)
+      {
+	cout <<"dealing with the signal " << endl;
+	//	TH1F* mcComp=(TH1F*) _fit->GetMCPrediction(signalIdx);
+	TH1F* mcComp=mcPredictions[signalIdx];
+	TH1F* mcCompCrossFeed;
+	//again, some of the templates are merged, so there is a shift by 2 in the indices
+	if(channel>3)
+	  {
+	    mcCompCrossFeed=mcPredictions[signalIdxCrossFeed];
+	    cout <<" x-feed predition is: "<< mcCompCrossFeed->Integral() <<" original template: " << templates[iDDStarPiCrossFeed-numMergers] <<" (mergers: " << numMergers <<")" <<endl;
+	    cout <<"temp Int : " << tempIntegral <<" so template fraction is " << templates[iDDStarPiCrossFeed-numMergers]->Integral()/tempIntegral << ", ratio to fit: " <<  allFitVals[signalIdxCrossFeed]/(templates[iDDStarPiCrossFeed-numMergers]->Integral()/tempIntegral) <<endl; 
+
+
+	  }
+	cout <<"got pred " << endl;
+	double mcPredInt=mcComp->Integral();
+	double mcPredIntCrossFeed=0;
+	if(channel>3)
+	  {
+	    mcPredIntCrossFeed=mcCompCrossFeed->Integral();
+	    cout <<"mc predIntCross feed: "<< mcPredIntCrossFeed <<endl;
+	  }
+	sumOfCompInts+=mcPredInt;
+	float scaleFact=integralResult/mcPredInt*allFitVals[signalIdx];
+	float scaleFactCrossFeed=0;
+	if(channel>3)
+	  scaleFactCrossFeed=integralResult/mcPredIntCrossFeed*allFitVals[signalIdxCrossFeed];
+	cout <<"got scalefact " << endl;
+	//just fill with the rest
+	//	float scaleFact=integralResult/mcPredInt*(1-totalFraction);
+	//	scaleFact/=sumOfFractions;
+
+
+	/////
+	//by using the mcPredInt, which, even for fixed ratios contains apparently poission fluctuations, we are not guaranteed to get fixed scalefactors for fixed components back
+	////
+	cout <<"scaling mccomp by : "<<scaleFact<<endl;
+	mcComp->Scale(scaleFact);
+	mcComp->SetFillStyle(1001);
+	mcComp->SetFillColor(glColorTable[SIG_IDX]->GetNumber());
+
+	cout <<"BR ratio to MC for channel " << channelString << " is : "<< mcComp->Integral()/mcSignalIntegral<<endl;
+	cout <<"fit val: "<< allFitVals[signalIdx] << " uncert: "<< allFitErrs[signalIdx] << "  relative uncert  " << allFitErrs[signalIdx]/allFitVals[signalIdx] <<endl; 
+	if(channel>3)
+	  {
+	    mcComp->Scale(scaleFactCrossFeed);
+	    cout <<"using index: "<< signalIdxCrossFeed <<endl;
+	    cout <<"BR ratio to DDStar MC for channel " << channelString << " is : "<< mcCompCrossFeed->Integral()/mcSignalIntegralCrossFeed<<endl;
+	    cout <<"fit val: "<< allFitVals[signalIdxCrossFeed] << " uncert: "<< allFitErrs[signalIdxCrossFeed] << "  relative uncert  " << allFitErrs[signalIdxCrossFeed]/allFitVals[signalIdxCrossFeed] <<endl; 
+	  }
+
+	predComponents->Add(mcComp);
+	//	legend->AddEntry(mcComp,templateLegendNames[SIG_IDX],"f" );
+
+	cout <<"mcPred is: "<< mcPredInt <<endl;
+	double fitFraction,fitUncert;
+
+	//_fit->GetResult(signalIdx,fitFraction,fitUncert);
+	fitFraction=fitVal;
+	fitUncert=fitErr;
+	double fitFraction2=allFitVals[signalIdx];
+	cout <<"compare the two fractions: " << fitFraction <<" to : " << fitFraction2 <<endl;
+	cout <<"we still need "<< 1.0-totalFraction <<" of the data and have " << fitFraction<< " so missing " << 1.0-totalFraction-fitFraction <<endl;
+	double miss=1.0-totalFraction-fitFraction;
+	cout <<"after scale mc pred is: "<< mcComp->Integral()<<endl;
+	cout <<"BR ratio to MC is : "<< mcComp->Integral()/mcSignalIntegral<<endl;
+	legend->AddEntry(mcComp,templateLegendNames[SIG_IDX],"f" );
+      }
+
+    cout <<"sum of all component integrals: "<< sumOfCompInts <<endl;
+
+    ////
+    if(numPions==0)
+      {
+#ifdef PARTIAL_BOX
+	if(leptonId==0)
+	  {
+	    data->GetYaxis()->SetRangeUser(0,3300*gl_templateScaleFactor);
+	    if(channel==1)
+	      data->GetYaxis()->SetRangeUser(0,60);
+	    if(channel==3)
+	      data->GetYaxis()->SetRangeUser(0,20);
+	  }
+	else
+	  {
+	    data->GetYaxis()->SetRangeUser(0,1500*gl_templateScaleFactor);
+	  }
+#else
+	if(leptonId==0)
+	  data->GetYaxis()->SetRangeUser(0,4000*gl_templateScaleFactor);
+	else
+	  data->GetYaxis()->SetRangeUser(0,1500*gl_templateScaleFactor);
+#endif
+      }
+    if(numPions==1)
+      {
+#ifdef PARTIAL_BOX
+	if(leptonId==0)
+	  {
+	    data->GetYaxis()->SetRangeUser(0,3300*gl_templateScaleFactor);
+	    if(channel==1)
+	      data->GetYaxis()->SetRangeUser(0,60);
+	    if(channel==3)
+	      data->GetYaxis()->SetRangeUser(0,20);
+	  }
+	else
+	  {
+	    data->GetYaxis()->SetRangeUser(0,1500*gl_templateScaleFactor);
+	  }
+#else
+	if(leptonId==0)
+	  data->GetYaxis()->SetRangeUser(0,800*gl_templateScaleFactor);
+	else
+	  data->GetYaxis()->SetRangeUser(0,250*gl_templateScaleFactor);
+#endif
+      }
+    if(numPions==2)
+      {
+	if(leptonId==0)
+	  {
+	    if(combineDPiPi)
+	      data->GetYaxis()->SetRangeUser(0,450*gl_templateScaleFactor);
+	    else
+	      data->GetYaxis()->SetRangeUser(0,1600*gl_templateScaleFactor);
+	  }
+	else
+	  {
+	    if(combineDPiPi)
+	      data->GetYaxis()->SetRangeUser(0,250*gl_templateScaleFactor);
+	    else
+	      data->GetYaxis()->SetRangeUser(0,800*gl_templateScaleFactor);
+	  }
+      }
+
+    char buffer2[200];
+    sprintf(buffer2,"counts/ %.2f GeV^{2}",(upperCut[glChannelIdx]-lowerCut[glChannelIdx])/(float)numBins[glChannelIdx]);
+    data->GetYaxis()->SetTitle(buffer2);
+    data->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}]");
+    data->SetTitle("");
+    data->Draw("Ep");
+    predComponents->SetTitle("");
+    //    predComponents->SetStats(0);
+    //    predComponents->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV]");
+    predComponents->Draw("hist same");
+    data->SetLineWidth(2);
+    data->SetStats(0);
+    data->Draw("same Ep");
+    legend->Draw();
+    sprintf(buffer,"predComp_numPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+    sprintf(buffer,"predComp_numPions_%d_leptonId_%d_%s.pdf",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+    sprintf(buffer,"predComp_numPions_%d_leptonId_%d_%s.eps",numPions,leptonId,channelString);
+    c.SaveAs(buffer);
+  }
+}
+  ////
+
+/**
+Combine D and D* channels (so B0->Dpilnu with B0->D*pilnu and the same with B->D so we can fit the D* signal and the feeddown at the same time.
+The returned components are one less, since we combine two and the D* missing mass templates are shifted
+summedComponents_out will have 2* summedComponentsD -1 size (everything double, but remove both x-feed fields and combine (DStar x-feed doesn't make sense, only there for symmetry)
+ */
+void combineChannels(TH1F** summedComponentsD_in,  TH1F** summedComponentsDStar_in, TH1F** summedComponents_out, int numComponents, int DChannelIdx, int numPions)
+{
+  //question: do we get in trouble with binning, mass range assumptions in later fits? Need to keep that flexible...
+  
+  //already the correct index because this has been computed from the combined channel (so starts at 0)
+
+  cout <<" using channel idx: " << DChannelIdx <<endl;
+  //the corresponding dStar channel should be the next one
+  int DStarChannelIdx=DChannelIdx+1;
+  Double_t upperCutD=upperCut[DChannelIdx];
+  Double_t lowerCutD=lowerCut[DChannelIdx];
+  int numBinsD=numBins[DChannelIdx];
+  Double_t upperCutDStar=upperCut[DStarChannelIdx];
+  Double_t lowerCutDStar=lowerCut[DStarChannelIdx];
+  int numBinsDStar=numBins[DStarChannelIdx];
+  char buffer[500];
+  cout <<"numBinsD: "<< numBinsD <<" upperCutD: " << upperCutD <<" lowerCut: "<< lowerCutD <<", bins DS: " << numBinsDStar << " upper DS: " << upperCutDStar <<" lower DS: "<< lowerCutDStar <<endl;
+  //for SIG and x_feed we put it in the same template, separate templates for the others
+
+  //run over components twice, first for D, where we add the upward crossfeed (should be non-existent) to the signal and the D* signal to the x-feed
+  //then a second run for the D* where we add everything but the signal and xfeed
+  int counter=-1;
+  for(int i=0;i<numComponents;i++)
+    {
+      counter++;
+      if(i==SIG_IDX)
+	{
+	  sprintf(buffer,"combined_%s_%s",summedComponentsD_in[SIG_IDX]->GetName(),summedComponentsDStar_in[iDDStarPiCrossFeed]->GetName());
+	  summedComponents_out[counter]=new TH1F(buffer,buffer,numBinsD+numBinsDStar,lowerCutD,upperCutD+(upperCutDStar-lowerCutDStar));
+	  summedComponents_out[counter]->Sumw2();
+	  addShiftedHistos(summedComponentsD_in[SIG_IDX],summedComponentsDStar_in[iDDStarPiCrossFeed],summedComponents_out[counter],numBinsD,numBinsDStar);
+	  summedComponents_out[counter]->SetFillStyle(1001);
+	  summedComponents_out[counter]->SetFillColor(glColorTable[i]->GetNumber());
+	  continue;
+	}
+      bool isCrossFeed=(i==iDDStarPiCrossFeed && numPions >0 )|| (numPions==0 && i==iDStarLNu);
+      if(isCrossFeed)
+	{
+	  sprintf(buffer,"combined_%s_%s",summedComponentsD_in[iDDStarPiCrossFeed]->GetName(),summedComponentsDStar_in[SIG_IDX]->GetName());
+	  summedComponents_out[counter]=new TH1F(buffer,buffer,numBinsD+numBinsDStar,lowerCutD,upperCutD+(upperCutDStar-lowerCutDStar));
+	  summedComponents_out[counter]->Sumw2();
+	  if(numPions==0)
+	    addShiftedHistos(summedComponentsD_in[iDStarLNu],summedComponentsDStar_in[iDStarLNu],summedComponents_out[counter],numBinsD,numBinsDStar);
+	  else
+	    addShiftedHistos(summedComponentsD_in[iDDStarPiCrossFeed],summedComponentsDStar_in[SIG_IDX],summedComponents_out[counter],numBinsD,numBinsDStar);
+	  summedComponents_out[counter]->SetFillStyle(1001);
+	  summedComponents_out[counter]->SetFillColor(glColorTable[i]->GetNumber());
+	  continue;  
+	}
+      //all other cases just copy the D templates in the lower half
+      if((!isCrossFeed) && (i != SIG_IDX))
+	{
+	  sprintf(buffer,"combined_D_%s",summedComponentsD_in[i]->GetName());
+	  summedComponents_out[counter]=new TH1F(buffer,buffer,numBinsD+numBinsDStar,lowerCutD,upperCutD+(upperCutDStar-lowerCutDStar));
+	  summedComponents_out[counter]->Sumw2();
+	  copyHisto(summedComponentsD_in[counter],summedComponents_out[counter],numBinsD,numBinsD+numBinsDStar);
+	  summedComponents_out[counter]->SetFillStyle(1001);
+	  summedComponents_out[counter]->SetFillColor(glColorTable[i]->GetNumber());
+	}
+    }
+  int ommitted=0;
+  //now run over the DStar components, but leave out SIG_IDX and cross-feed because we already added that earlier (and don't forget to shift up)
+  for(int i=0;i<numComponents;i++)
+      {
+	bool isCrossFeed=(i==iDDStarPiCrossFeed && numPions >0 )|| (numPions==0 && i==iDStarLNu);
+	if((i==SIG_IDX) || (isCrossFeed))
+	  {
+	    continue;
+	  }
+	counter++;
+	sprintf(buffer,"combined_DStar_%s",summedComponentsDStar_in[i]->GetName());
+	summedComponents_out[counter]=new TH1F(buffer,buffer,numBinsD+numBinsDStar,lowerCutD,upperCutD+(upperCutDStar-lowerCutDStar));
+	summedComponents_out[counter]->Sumw2();
+	copyHisto(summedComponentsDStar_in[i],summedComponents_out[counter],numBinsDStar,numBinsD+numBinsDStar,numBinsD);
+	//take the same colors and jump over signal etc..
+	summedComponents_out[counter]->SetFillStyle(1001);
+	summedComponents_out[counter]->SetFillColor(glColorTable[i]->GetNumber());
+    }
+}
+
 
 
 
