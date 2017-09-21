@@ -25,7 +25,7 @@ int SIG_IDX;
 //Robnin's cuts for x-check
 #define P0STRING "( recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.24  && logProb > -3.0 "
 //#define P1STRING "(bestD==1 && pi1Mom > 0.24 && recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb > -3.0 && mDnPi < 3.5  "
-#define P1STRING "(bestD==1 && pi1Mom > 0.24 && recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb > -3.0 && mDnPi < 3.5  &&mDnPi > 2.05"
+#define P1STRING "(bestD==1 && pi1Mom > 0.24 && recDecaySignature &&mNu2<%f && mNu2>%f && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.18 && deltaETag<0.18 && logProb > -3.5 && mDnPi < 3.5  &&mDnPi > 2.05"
 ////
 
 
@@ -187,7 +187,8 @@ bool withDCorrection;
 bool withFFCorrection;
 float getFitSignal( TH1F* data,TH1F** templates,int numTemplates,     TH1F* &result, TH1F** mcPredictions, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals,double* allFitErrs, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
 float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates, TH1F* &result, TH1F** mcPredictions, double& fitVal, double& fitErr , int fixThresholdCounts, double* allFitVals,double* allFitErrs, int &numEffective, vector<int>& effectiveComponentsIndices, int& status, int numPions);
-
+void performSysStudies(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,TH1D* pullsFeedDown,double signalFraction, double crossFeedFraction, int fixThresholdCounts,int numPions);
+//void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, int numPions);
 void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,TH1D* pullsFeedDown,double signalFraction, double crossFeedFraction, int fixThresholdCounts,int numPions);
 void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
 void addPoissonNoise(TH1F* h);
@@ -708,7 +709,6 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   TLegend* legend =new TLegend(0.6,0.7,0.89,0.99);
   cout <<"fit fractions with " << numComponents <<" components"<<endl;
 
-
   char histoName[2009];
   char drawCommand[2000];
   char buffer[2000];
@@ -768,7 +768,7 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   ////---
   double signalFraction=gl_templateScaleFactor*templates[SIG_IDX]->Integral()/data->Integral();
   double crossFeedFraction=0;
-  gl_templateScaleFactor*templates[iDDStarPiCrossFeed-2]->Integral()/data->Integral();
+  //  gl_templateScaleFactor=templates[iDDStarPiCrossFeed-2]->Integral()/data->Integral();
 
   cout <<"for BR, signal for channel " << channel<< "  in MC is : " << templates[SIG_IDX]->Integral() <<endl;;
   cout <<"we have " << numComponents <<" components, " << numMergers <<" mergers, so overall: "<< numComponents-numMergers << " templates"<<endl;
@@ -872,10 +872,12 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
   sampleData.SaveAs("sampleData.eps");
   
   int numEffectiveComponents=0;
-
+  cout << " status: "<< _status <<endl;
   if (_status == 0) {                       // check on fit status
     TCanvas c;
+    cout <<"grabbing result .." <<endl;
     double templatePredIntegral=result->Integral();
+    cout <<" done " <<endl;
     data->Draw("Ep");
     result->Draw("same");
     sprintf(buffer,"fracFit_numPions_%d_leptonId_%d_%s.png",numPions,leptonId,channelString);
@@ -906,12 +908,10 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 	    // TH1F* mcComp=(TH1F*) _fit->GetMCPrediction(i);
 
 	    TH1F* mcComp=mcPredictions[i];
-
 	    double mcPredInt=mcComp->Integral();
 	    sumOfCompInts+=mcPredInt;
 	    if(allFitVals[i]>0)
 	      {
-
 		/////
 		//by using the mcPredInt, which, even for fixed ratios contains apparently poission fluctuations, we are not guaranteed to get fixed scalefactors for fixed components back
 		////
@@ -1449,7 +1449,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
       sprintf(bufferDlNu,"%s && sig_DLNu && %s)",buffer,channelSelectionDataAndMC);
     }
 
-
   sprintf(bufferDPilNu,"%s && sig_DPiLNu&& !sig_DLNu  )",buffer);
   sprintf(bufferDPiPilNu,"%s && sig_DPiPiLNu && !sig_DLNu && !sig_DPiLNu)",buffer);
   sprintf(bufferDStarlNu,"%s &&  sig_DStarLNu && !sig_DLNu && !sig_DPiLNu&& !sig_DPiPiLNu)",buffer);
@@ -1474,7 +1473,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
   selections[iDLNu]=bufferDlNu;
   //  selections[5]=bufferDPilNu;
   selections[iDPiPiLNu]=bufferDPiPilNu;
-
   selections[iDStarLNu]=bufferDStarlNu;
   //  selections[8]=bufferDStarPilNu;
   selections[iDStarPiPiLNu]=bufferDStarPiPilNu;
@@ -1603,9 +1601,6 @@ void getMCComponents(TTree** trees, TH1F** components, TH1F** summedComponents, 
     }
   cout <<"done with getMCComponents" <<endl;
 };
-
-
-
 
 
 void saveStack(TH1F** components, TH1F** summedComponents, int numPions, int leptonId, int channel, bool isCombinedChannel)
@@ -2233,6 +2228,12 @@ void addPoissonNoise(TH1F* h)
     }
 }
 
+void performSysStudies(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, int numPions)
+{
+
+}
+
+
 void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int numComponents, TH1D* pulls,TH1D* pullsFeedDown, double signalFraction,double crossFeedFraction, int fixThresholdCounts, int numPions)
 {
   cout <<"trying stability test.. " << endl;
@@ -2382,6 +2383,7 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
   float retVal=-1;
   for(int iSigIdx=0;iSigIdx<maxSigIdx;iSigIdx++)
     {
+      cout <<"sigidx: "<< iSigIdx <<endl;
       if(iSigIdx>0)
 	{
 	  locEffIndices=&locEffectiveComponentIndices;
@@ -2605,7 +2607,7 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 		  upperLimit=2*iThFraction;
 		  if(iThFraction>0.1)
 		    {
-		      lowerLimit=0.5*iThFraction;
+		      lowerLimit=0.2*iThFraction;
 		    }
 		  float paraUncert=0.1*iThFraction;
 		  paraUncert=0.1; //better than above
@@ -2843,7 +2845,8 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 		    //	  allFitVals[i]=rvArr[i]->getValV()/scaleFactor;
 		    if(i==xFeedIndex)
 		      cout <<" component: " << i <<" fit val: "<< allFitVals[i] << " uncert: "<< rvArr[i]->getError()<<" orig val: "<< rvArr[i]->getValV() <<endl;
-		    if(rvArr[i]->getValV()>0 && rvArr[i]->getError() >0 )
+		    //don't look at the uncertainty, since we are fixing parameters...
+		    if(rvArr[i]->getValV()>0)// && rvArr[i]->getError() >0 )
 		      {
 			//relative error
 			//
@@ -2867,6 +2870,8 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 		      }
 		    else
 		      {
+			cout <<"setting component" <<i << " to zero " <<endl;
+			cout <<" rvArr: "<< rvArr[i]->getValV() <<" err: "<< rvArr[i]->getError()<<endl;
 			allFitErrs[i]=0.0;
 			mcPredictions[i]->Scale(0.0);
 		      }
@@ -2879,7 +2884,10 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 		  }
 		//should be true since it would otherwise not be one of the effective components
 		if(mcPredictions[i]->Integral()>0)
-		  mcPredictions[i]->Scale(data->Integral()*allFitVals[i]/mcPredictions[i]->Integral());
+		  {
+		    mcPredictions[i]->Scale(data->Integral()*allFitVals[i]/mcPredictions[i]->Integral());
+cout <<"scale mcprediction " << i << " by " <<  data->Integral()*allFitVals[i]/mcPredictions[i]->Integral() <<endl;
+		  }
 	      }
 	  }
 	else
@@ -2889,7 +2897,17 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 	    cout <<" setting xFeed Index  value " << signalIndex << " to : "<< rooSigFrac.getValV()/scaleFactor;
 	    allFitVals[signalIndex]=rooSigFrac.getValV()/scaleFactor;
 	    allFitErrs[signalIndex]=rooSigFrac.getError()/scaleFactor;
+	    mcPredictions[signalIndex]=(TH1F*)templates[(*locEffIndices)[signalIndex]]->Clone(buffer);
+	    cout << " constructing xfeed prediction for index " << signalIndex <<" , template index: "<<(*locEffIndices)[signalIndex]<<endl;
+	    if(mcPredictions[signalIndex]->Integral()>0)
+	      {
+		  mcPredictions[signalIndex]->Scale(data->Integral()*allFitVals[signalIndex]/mcPredictions[signalIndex]->Integral());
+		  cout <<" and scaled by " << data->Integral()*allFitVals[signalIndex]/mcPredictions[signalIndex]->Integral() <<endl;
+	      }
 	  }
+	//only then we have the correct value for the crossfeed
+	if(iSigIdx==1 || maxSigIdx<2)
+	  {
 	    float allFracs=0;
 	    for(int i=0;i<numEffectiveComponents;i++)
 	      {
@@ -2904,35 +2922,34 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 	      }
 	
 	    cout <<" results integral : "<< result->Integral() <<endl;
-	    
-	    cout <<"deleting frames " <<endl;
-	    delete bFrame1;
-	    delete bFrame2;
-	    delete bFrame3;
-	    delete bFrame4;
-	    
-	    delete mFrame1;
-	    delete mFrame2;
-	    delete mFrame3;
-	    delete mFrame4;
-	    //delete everyting
-	    cout <<" deleting roo objects " <<endl;
-	    for(int i=0;i<numEffectiveComponents;i++)
+	  }
+	cout <<"deleting frames " <<endl;
+	delete bFrame1;
+	delete bFrame2;
+	delete bFrame3;
+	delete bFrame4;
+	
+	delete mFrame1;
+	delete mFrame2;
+	delete mFrame3;
+	delete mFrame4;
+	//delete everyting
+	cout <<" deleting roo objects " <<endl;
+	for(int i=0;i<numEffectiveComponents;i++)
+	  {
+	    if(i!=signalIndex)
 	      {
-		if(i!=signalIndex)
-		  {
-		    delete rvArr[i];
-		  }
-		
-		delete rooHistPdfs[i];
-		delete rooHists[i];
+		delete rvArr[i];
 	      }
-	    cout <<" done " <<endl;
-	    if(iSigIdx==0)
-	      numEffective=numEffectiveComponents;
-	    //    RooHistPdf pdf("mpdf","mpdf",);
-      }
-
+	    
+	    delete rooHistPdfs[i];
+	    delete rooHists[i];
+	  }
+	cout <<" done " <<endl;
+	if(iSigIdx==0)
+	  numEffective=numEffectiveComponents;
+	//    RooHistPdf pdf("mpdf","mpdf",);
+    }
 
     return retVal;
 }
@@ -3198,10 +3215,10 @@ float getFitSignal(TH1F* data,TH1F** templates,int numTemplates,     TH1F* &resu
 	  sprintf(buffer,"para%d",i);
 	  float upperLimit=1.0;
 	  float lowerLimit=0.0;
-	  upperLimit=2*iThFraction;
+	  upperLimit=4*iThFraction;
 	  if(iThFraction>0.1)
 	    {
-	      lowerLimit=0.5*iThFraction;
+	      lowerLimit=0.2*iThFraction;
 	    }
 	  float paraUncert=0.1*iThFraction;
 	  paraUncert=0.1; //better than above
@@ -3269,5 +3286,26 @@ void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegend
 
 
 };
+
+float getSBChi2(TH1F* data, TH1F* mc)
+{
+
+  if(data->GetNbinsX()!=mc->GetNbinsX())
+    {
+      cout <<" sideband chi2, bins don't match!!" << endl;
+      exit(0);
+    }
+  int N=data->GetNbinsX();
+  double chi2=0;
+  for(int i=1;i<=N;i++)
+    {
+      chi2+=fabs(data->GetBinContent(i)-mc->GetBinContent(i))/(sqrt(data->GetBinError(i)*data->GetBinError(i)+mc->GetBinError(i)*mc->GetBinError(i)));
+    }
+
+  return chi2/N;
+
+}
+
+
 #endif
 

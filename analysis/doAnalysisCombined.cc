@@ -18,14 +18,14 @@
 
 //This option is used when we read in 1/4th of the MC data as the data tree
 //#define MC_TEST
-#define GENERATE_SINGLE_STREAM
+//#define GENERATE_SINGLE_STREAM
 //open box by 15%
 //#define PARTIAL_BOX
 //#define  USE_DATA
 
 
 //of course need to set doSBComb as well...
-//#define onlySB
+#define onlySB
 
 
 #include "TFractionFitter.h"
@@ -68,11 +68,16 @@ int main(int argc, char** argv)
 #else
   SIG_IDX =SIG_IDX_D_PI;
 #endif
-      bool doSBComp=false;
-  //      bool doSBComp=true;
+        bool doSBComp=false;
+	//        bool doSBComp=true;
+#ifdef onlySB
+	//otherwise doesn't make sense
+	doSBComp=true;
+#endif
+
   //remember that partial_box changes bins, so have to rerun in between
-      //                     int loadFromFile=false;
-      int loadFromFile=true;
+      //                           int loadFromFile=false;
+			   int loadFromFile=true;
 
   glChannelIdx=0;
   pCount=0;
@@ -229,6 +234,10 @@ int main(int argc, char** argv)
       channelsUnderConsideration.push_back(5);
   //channel
   //    for(int iC=-1;iC<4;iC++)
+
+      TH1F sbChi2("sb_chi2","sb_chi2",20,0,2);
+
+
       TH1F* data[7];
   for(vector<int>::iterator it=channelsUnderConsideration.begin();it!=channelsUnderConsideration.end();it++)
     {
@@ -264,8 +273,8 @@ int main(int argc, char** argv)
 		      
       cout <<"1" <<endl;
       
-      //            for(int i=0;i<3;i++)
-                  	      for(int i=0;i<1;i++)      
+                  for(int i=0;i<3;i++)
+		    //            	      for(int i=0;i<1;i++)      
       //      	      for(int i=1;i<3;i++)      
 	{
 	  leptonId=leptonIds[i];
@@ -477,7 +486,6 @@ int main(int argc, char** argv)
 	    }
 
 	  ///temporary
-
 	  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls,pullsFeedDown);
 
 
@@ -493,10 +501,6 @@ int main(int argc, char** argv)
 
 	  //-->this calls fitFraction with addNoise set to true
 	  ///////      fitFractions(trees,summedComponents[i][pionIndex],9,numPions,leptonId,false,true,pulls);
-
-	  
-
-
 
 	  TCanvas cpulls;
 	  pulls->Draw();
@@ -530,16 +534,15 @@ int main(int argc, char** argv)
 	      (*upperSidebandMC)->Sumw2();
 	      (*lowerSidebandMC)->Sumw2();
 
-
 	      char buffer2[200];
-	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(lowerSidebandTop-lowerSidebandBottom)/numBinsSB);
+	      sprintf(buffer2,"counts/ %.3f GeV^{2}",(lowerSidebandTop-lowerSidebandBottom)/numBinsSB);
 	      (*lowerSidebandData)->GetYaxis()->SetTitle(buffer2);
 	      cout <<" setting y axis title to " << buffer2<<endl;
 	      (*lowerSidebandData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 	      (*lowerSidebandMC)->GetYaxis()->SetTitle(buffer2);
 	      (*lowerSidebandMC)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 
-	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(upperSidebandTop-upperSidebandBottom)/numBinsSBTop);
+	      sprintf(buffer2,"counts/ %.3f GeV^{2}",(upperSidebandTop-upperSidebandBottom)/numBinsSBTop);
 	      (*upperSidebandData)->GetYaxis()->SetTitle(buffer2);
 	      (*upperSidebandMC)->GetYaxis()->SetTitle(buffer2);
 
@@ -596,6 +599,11 @@ int main(int argc, char** argv)
 	      (*upperSidebandMC)->Scale(scaleUpper);
 	      (*lowerSidebandMC)->Scale(scaleLower);
 
+	      cout <<" upper SB chi2: "<< getSBChi2(*upperSidebandData, *upperSidebandMC) <<endl;
+	      cout <<" lower SB chi2: "<< getSBChi2(*lowerSidebandData, *lowerSidebandMC) <<endl;
+
+	      sbChi2.Fill(getSBChi2(*upperSidebandData, *upperSidebandMC));
+	      sbChi2.Fill(getSBChi2(*lowerSidebandData, *lowerSidebandMC));
 
 	      TCanvas c("c","c",0,0,1000,800);
 	      c.Divide(2,2);
@@ -671,7 +679,7 @@ int main(int argc, char** argv)
 	      (*chargeNeutralData)->Sumw2();
 
 
-	      sprintf(buffer2,"counts/ %.2f GeV^{2}",(upperCut[iC+1]-lowerCut[iC+1])/numBinsWS);
+	      sprintf(buffer2,"counts/ %.3f GeV^{2}",(upperCut[iC+1]-lowerCut[iC+1])/numBinsWS);
 	      (*sameChargeData)->GetYaxis()->SetTitle(buffer2);
 	      (*sameChargeData)->GetXaxis()->SetTitle("m_{#nu}^{2} [GeV^{2}] ");
 	      (*sameChargeMC)->GetYaxis()->SetTitle(buffer2);
@@ -712,7 +720,10 @@ int main(int argc, char** argv)
 	      (*sameChargeMC)->Scale(scaleSameCharge);
 	      (*chargeNeutralMC)->Scale(scaleChargeNeutral);
 	      (*sameChargeData)->Draw("E1");
-
+	      cout <<" same charge chi2: "<< getSBChi2(*sameChargeData, *sameChargeMC) <<endl;
+	      cout <<" charge neutral chi2: "<< getSBChi2(*chargeNeutralData, *chargeNeutralMC) <<endl;
+	      sbChi2.Fill(getSBChi2(*sameChargeData, *sameChargeMC));
+	      sbChi2.Fill(getSBChi2(*chargeNeutralData, *chargeNeutralMC));
 	      c.Update();
 	      (*sameChargeMC)->Draw("hist SAME");
 	      (*chargeNeutralMC)->SetLineColor(kBlue);
@@ -806,6 +817,14 @@ int main(int argc, char** argv)
 
 	}
     }
+
+  TCanvas c77;
+  sbChi2.Draw();
+  cout <<"mean chi2: " << sbChi2.GetMean() <<endl;
+  sbChi2.GetXaxis()->SetTitle("reduced #chi^{2}");
+  c77.SaveAs("sbChi2.pdf");
+  c77.SaveAs("sbChi2.png");
+  c77.SaveAs("sbChi2.root");
 
 }
 
