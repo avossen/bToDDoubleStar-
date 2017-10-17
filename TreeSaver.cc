@@ -17,6 +17,7 @@ namespace Belle {
   vector<int> TreeSaver::dataI;
   vector<string> TreeSaver::fieldNamesF;
   vector<string> TreeSaver::fieldNamesI;
+  vector<string> TreeSaver::fieldNamesS;
 
 #if defined(BELLE_NAMESPACE)
 }

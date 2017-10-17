@@ -14,10 +14,26 @@ class FFCorrections
 {
 
  public:
+
+  struct ffRet
+  {
+    int pBin;
+    int q2Bin;
+    int dType;
+  };
+  struct ffRetDds
+  {
+    int cosTBin;
+    int wBin;
+    int ddsType;
+  };
+  
+
+
   FFCorrections()
     {
 
-      for(int i=1;i<=10;i++)
+      for(int i=1;i<=12;i++)
 	{
 	  limitsQ2.push_back(float(i));
 	}
@@ -42,8 +58,8 @@ class FFCorrections
 	  limit+=0.2;
 	}
     }
-  void getWeightD(float lP,float q2, int lType, float& weight, float& stat, float& sys);
-  void getWeightDDStar(float w,float cosT, int dssIdx, float& weight, float& stat, float& sys);
+  void getWeightD(float lP,float q2, int lType, float& weight, float& stat, float& sys,ffRet& mRet);
+  void getWeightDDStar(float w,float cosT, int dssIdx, float& weight, float& stat, float& sys, ffRetDds& mRet);
   int getBin(vector<float>& b1, float value);
 
  protected:

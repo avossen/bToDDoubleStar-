@@ -16,9 +16,9 @@ int FFCorrections::getBin(vector<float>& b1, float value)
 };
 
 
-void FFCorrections::getWeightD(float lP,float q2, int lType, float& weight, float& stat, float& sys)
+void FFCorrections::getWeightD(float lP,float q2, int lType, float& weight, float& stat, float& sys, ffRet& mRet)
 {
-
+  //  cout <<"ltype: "<< lType <<endl;
   if(lType!=1 && lType!=2)
     {
       cout <<"wrong lType: "<< lType <<endl;
@@ -29,49 +29,61 @@ void FFCorrections::getWeightD(float lP,float q2, int lType, float& weight, floa
     {
       isDStar=true;
     }
+
+
   int lPBin=getBin(limitsL_p,lP);
   int q2Bin=getBin(limitsQ2,q2);
 
-  int dColumns=13;
-  int dStarColumns=9;
+  mRet.pBin=lPBin;
+  mRet.q2Bin=q2Bin;
 
+  int dColumns=9;
+  int dStarColumns=13;
 
+  mRet.dType=0;
   int nCol=dColumns;
   float* arr=fWeightsD;
   int statPos=7;
   int sysPos=8;
   if(isDStar)
     {
+      mRet.dType=1;
       nCol=dStarColumns;
       arr=fWeightsDstar;
       statPos=11;
       sysPos=12;
     }
-
+  //  cout <<"isDStar? " << isDStar <<" ncol: "<< nCol <<endl;
   int index=(lPBin*limitsQ2.size()+q2Bin)*nCol;
+  //  cout <<"lPBin*limitsQ2: "<< lPBin*limitsQ2.size() <<endl;
   weight=arr[index+4];
   stat=arr[index+statPos];
-  stat=arr[index+sysPos];
-
+  sys=arr[index+sysPos];
+  //  cout <<"getWeightD  with lpbin: " << lPBin <<" q2bin: "<< q2Bin <<" index: "<< index << "weight: " << weight <<" stat: "<< stat <<" sys: " << sys<< endl;
 
 }
-void FFCorrections::getWeightDDStar(float w,float cosT, int dssIdx, float& weight, float& stat, float& sys)
+void FFCorrections::getWeightDDStar(float w,float cosT, int dssIdx, float& weight, float& stat, float& sys, ffRetDds& mRet)
 {
   int wBin=getBin(limitsW,w);
   int cosTBin=getBin(limitsCosT,cosT);
-
+  mRet.cosTBin=cosTBin;
+  mRet.wBin=wBin;
+  mRet.ddsType=0;
   int nCol=15;
   float* arr=fWeightsD1;
   if(dssIdx==1)
     {
+      mRet.ddsType=1;
       arr=fWeightsD2;
     }
   if(dssIdx==2)
     {
+      mRet.ddsType=2;
       arr=fWeightsD0star;
     }
   if(dssIdx==3)
     {
+      mRet.ddsType=3;
       arr=fWeightsD1prime;
     }
 
@@ -81,8 +93,8 @@ void FFCorrections::getWeightDDStar(float w,float cosT, int dssIdx, float& weigh
   int index=(wBin*limitsCosT.size()+cosTBin)*nCol;
   weight=arr[index+4];
   stat=arr[index+statPos];
-  stat=arr[index+sysPos];
-
+  sys=arr[index+sysPos];
+  //  cout <<"getWeightDDStar  with wbin: " << wBin <<" cosTBin: "<< cosTBin <<" index: "<< index << "weight: " << weight <<" stat: "<< stat <<" sys: " << sys<< endl;
 }
 
 //lepMomBins 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9...2.4

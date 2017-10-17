@@ -45,7 +45,6 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #include "kfitter/khelix2xyz.h"
 #include "kfitter/kfitterparticle.h"
 
-
 #include "bToDDoubleStar/weighting.h"
 
 //#include "exkvertexfitter... " for more than 1 to 2 decay
@@ -83,7 +82,6 @@ const bool SAVE_MESON_MASS_DISTRIBUTIONS=false;
 #define PY_DStar_2 415
 //this also lets the particle class crash...
 #define PY_DStar_2S 100423
-
 
 using namespace std;
 
@@ -388,6 +386,20 @@ namespace Belle {
   void bToDDoubleStar::event(BelleEvent* evptr, int* status)
   {
 
+    treeData.initData();
+    //0.35% systematics per track, efficiency is 0.8, so overall 0.35%/0.8
+    //sum up relative uncertainties for tracks for the signal, 
+    //uncertainties on the tagside should be in the tag uncertainty
+    float relTrackingSys=0.0035/0.8;
+    float sTracking=0.0;
+    int numTracks=0;
+
+    float sB_BR=0.0;
+    float sD_BR=0.0;
+
+    float sXSecWeight=0.0;
+    float xPIDWeight=0.0;
+    //seems to be global, so we don't see it set
     dssIdx=-1;
     lType=-1;
     //    cout <<"mc type: "<< mc_type<<endl;
@@ -399,8 +411,9 @@ namespace Belle {
 
     //for data make sure that we have a sensible default value
     treeData.initData();
+    //should not be necessary
     treeData.B_DecayCorr=1.0;
-    treeData.D_DecayCorr=1.0;
+    //    treeData.D_DecayCorr=1.0;
 
     bool bgFlag=false;
     bool foundDDStarFlag=false;
@@ -434,7 +447,6 @@ namespace Belle {
     sigResDPiLNu=0;
     sigResDPiPiLNu=0;
 
-
     ///add the decays for which we want to do branching ratio and FF corrections
     br_sig_D0LNu=0;
     //    br_sig_D0=0;
@@ -463,7 +475,6 @@ namespace Belle {
     //425  PY_DStar_20
     br_sig_D20LNu=0;
 
-
     //pythia 20423
     br_sig_D1Prime0LNu=0;
 
@@ -478,7 +489,6 @@ namespace Belle {
     const double m_pi0=0.1349766;
     vector<int> foundDecIds;
 
-
     int numNu=0;
     vector<int> decIds;
     vector<int> pids;
@@ -490,11 +500,8 @@ namespace Belle {
 
     if(!validRun)
       {
-	cout <<" no valid run " << endl;
 	return;
       }
-
-
 
     /////for xcheck
     AnaBrecon brecon;
@@ -506,14 +513,18 @@ namespace Belle {
     kinematics::evtNr=evtNr;
 
     float XSectionWeight=1.0;
+    float sXSectionWeight=0.0;
+
     float lumiWeight=1.0;
+    float sLumiWeight=0.0;
 
     float ffWeight=1.0;
+    float sFFWeight=0.0;
 
     //pid efficiencies only on the signal side (tag correction is done separately)
     float pidWeight=1.0;
+    float sPidWeight=0.0;
     //br correction done independently if signal or tag side
-
 
     if(m_mc)
       {
@@ -530,29 +541,58 @@ namespace Belle {
 	if(excludeSignal>0)
 	  mc_type = mctype_m.begin()->type();
 
+	pair<float,float> ret(1.0,0.0);
+	ret=pidCorrections.getXSectionCorrection(m_mc,mc_type);
+	XSectionWeight=ret.first;
+	sXSectionWeight=ret.second;
+	////--->why??	XSectionWeight=1.0;
 
-	XSectionWeight=pidCorrections.getXSectionCorrection(m_mc,mc_type);
-	XSectionWeight=1.0;
+	treeData.experiment=expNr;
+	ret=pidCorrections.getLumiCorrection(expNr);
+	lumiWeight=ret.first;
+	sLumiWeight=ret.second;
 
-	lumiWeight=pidCorrections.getLumiCorrection(expNr);
-	float ffWeight, ffStat,ffSys;
+	//find b meson id in the simulation (also does the determination of the subprocess for the BR etc correction
+	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay, foundDlNu);
+	//	if(dDoubleStarId==100423)
+	//	  cout <<"foundres  dd double star, --> sigres: "<< sigResDPiLNu<<endl;
+
+	//the ff corrections can only be made after a call to 'foundDPiPi', since this is where we check for the correct decay
+	float l_ffWeight, l_ffStat,l_ffSys;
+	FFCorrections::ffRet mFfRet;	
+	FFCorrections::ffRetDds mFfRetDds;	
 	if(dssIdx>-1 && lType>-1)
 	  {
-	    cout <<"both, D**lnu and D(*)lnu??" <<endl;
+	    //	    cout <<"both, D**lnu and D(*)lnu??" <<endl;
 	  }
 	if(lType>-1)
 	  {
-	    ffCorrections.getWeightD(ff_pL,q2,lType,ffWeight,ffStat,ffSys);
-	    ffWeight*=ffWeight;
-	  }
+	    //	    cout <<"get weight for D " <<endl;
+	    ffCorrections.getWeightD(ff_pL,q2,lType,l_ffWeight,l_ffStat,l_ffSys,mFfRet);
+	    treeData.FFDCorrection[treeData.numFFDCorr]=l_ffWeight;
+	    treeData.sFFDCorrection[treeData.numFFDCorr]=(l_ffStat*l_ffStat+l_ffSys*l_ffSys);
+	    treeData.D_q2BinFF[treeData.numFFDCorr]=mFfRet.q2Bin;
+	    treeData.D_pBinFF[treeData.numFFDCorr]=mFfRet.pBin;
+	    treeData.D_TypeBinFF[treeData.numFFDCorr]=mFfRet.dType;
+	    treeData.numFFDCorr++;
 
+	  }
 	if(dssIdx>-1)
 	  {
-	    ffCorrections.getWeightDDStar(w,cosTheta,dssIdx,ffWeight,ffStat,ffSys);
-	    ffWeight*=ffWeight;
+	    //	    cout <<"get weight for DStar, idx: "<< dssIdx <<endl;
+
+	    ffCorrections.getWeightDDStar(w,cosTheta,dssIdx,l_ffWeight,l_ffStat,l_ffSys,mFfRetDds);
+	    treeData.FFDdsCorrection[treeData.numFFDdsCorr]=l_ffWeight;
+	    treeData.sFFDdsCorrection[treeData.numFFDdsCorr]=(l_ffStat*l_ffStat+l_ffSys*l_ffSys);
+	    treeData.Dds_cosTBinFF[treeData.numFFDdsCorr]=mFfRetDds.cosTBin;
+	    treeData.Dds_wBinFF[treeData.numFFDdsCorr]=mFfRetDds.wBin;
+	    treeData.Dds_TypeBinFF[treeData.numFFDdsCorr]=mFfRetDds.ddsType;
+	    treeData.numFFDdsCorr++;
+
+
+	    //	    cout <<"adding " <<((l_ffStat*l_ffStat+l_ffSys*l_ffSys)/(l_ffWeight*l_ffWeight)) <<  " with stat:  "<< l_ffStat <<" sys:  " << l_ffSys <<" weight : "<< l_ffWeight <<endl;
+	    //	    cout <<"ffWeight now: "<< ffWeight <<endl;
 	  }
-	//find b meson id in the simulation (also does the determination of the subprocess for the BR etc correction
-	foundDPiPi=checkForDPiPi(bMesonId,foundSinglePionDecay, foundDlNu);
 	if(foundDPiPi || foundSinglePionDecay || foundDlNu)
 	  {
 	    //print
@@ -571,8 +611,6 @@ namespace Belle {
 	  }
       }
     //    printMCList();
-
-
 
 
 
@@ -604,7 +642,9 @@ namespace Belle {
 
     //#ifndef MC
     if(!goodHadronB())
-      return;
+      {
+	return;
+      }
     //#endif
     char ptypName[200];
     int lundPC=-1;
@@ -617,7 +657,6 @@ namespace Belle {
     atc_pid selPK(3,1,5,4,3); //proton kaon separation
     atc_pid selPiP(3,1,5,2,3); //pion proton separation
     atc_pid selKP(3,1,5,3,4);
-
 
     ////---
     Ekpfullrecon_Manager &ekpfullrecon_m= Ekpfullrecon_Manager::get_manager();
@@ -712,16 +751,27 @@ namespace Belle {
     //need good b
     if(bestLogProb<_log_nbout_min)
       {
+	//	if(dDoubleStarId==100423)
 	exitEvent();
 	return;
       }
     //According to Christoph, there are no non-resonant D(*)pilnu decays...
     if(m_mc && (sigDPiLNu || sigDStarPiLNu))
       {
+	if(dDoubleStarId==100423)
+	  {
+	    //	    cout <<"non res  d(*)pi" <<endl;
+	  }
 	exitEvent();
 	return;
       }
-
+	if(dDoubleStarId==100423)
+	  {
+	    if(sigResDPiLNu)
+	      {
+		//	cout <<" there and signal" <<endl;
+	      }
+	  }
     
     //    cout <<"best log prob: "<< bestLogProb<<endl;
     Particle & bestBcand = const_cast<Particle &>(brecon.getParticle( (int)bestEKP_B.get_ID() ));
@@ -730,7 +780,7 @@ namespace Belle {
     bestBPz=bestBcand.pz();
 
 
-    //    cout <<"looking at b cand" <<endl;
+    //   cout <<"looking at b cand" <<endl;
 
     //    if(bestBcand.mdstVee2())
     //      csout <<"b has vee2 " <<endl;
@@ -753,6 +803,7 @@ namespace Belle {
     treeData.found_2SD=sig_d_2S;
     treeData.found_2SD_Star=sig_dStar_2S;
     treeData.foundAnyDDoubleStar=sig_FoundDDoubleStar;
+    treeData.DDStarMass_mc=mcMassDDStar;
     treeData.sig_numPions=sig_numPions;
     treeData.sig_numD=sig_numD;
     treeData.sig_numDStar=sig_numDStar;
@@ -836,9 +887,21 @@ namespace Belle {
 	    chargedIds.insert(vee_it->chgd(1));
 	    if(m_mc)
 	      {
-		pidWeight*=pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr);
+		pair<float,float> ret;
+		PIDCorrections::pidRet mPidRet;
+		ret=pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr, mPidRet);
+		treeData.KsCorrection[treeData.numKsCorr]=ret.first;
+		treeData.sKsCorrection[treeData.numKsCorr]=ret.second;
+		treeData.KsCorrMomBin[treeData.numKsCorr]=mPidRet.momBin;
+		treeData.KsCorrThetaBin[treeData.numKsCorr]=mPidRet.thetaBin;
+		treeData.numKsCorr++;
+
+		pidWeight*=ret.first;
+		sPidWeight+=(ret.second*ret.second)/(ret.first*ret.first);
+
+
 		//	      if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-		if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+		//		if(pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr).first<0.0)
 		  {
 		    //		    cout <<"ks pidweight : " << pidCorrections.getWeight(-1,310,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
 		  }
@@ -856,6 +919,7 @@ namespace Belle {
     //    cout <<"there are " << mdst_chr_Mgr.size() << " charge tracks in mdst_chr " <<endl;
     for(Mdst_charged_Manager::iterator chr_it=mdst_chr_Mgr.begin();chr_it!=mdst_chr_Mgr.end();chr_it++)
       {
+	//	cout <<" looking at charged.." << endl;
 	//to check if the pions from in the signal can be reconstructed...
 	if(m_mc)
 	  foundChargedDecIds.insert(chr_it->get_ID());
@@ -868,7 +932,9 @@ namespace Belle {
 
 
 	//      cout <<"looking at " <<(*chr_it).p(0) <<" " << (*chr_it).p(1) <<" " << (*chr_it).p(2) <<endl;
-
+	/////tracking systematics
+	sTracking+=relTrackingSys*relTrackingSys;
+	numTracks++;
 	double m_mass=m_pi;
 	int massHyp=2;
 	bool isLepton=false;
@@ -1075,8 +1141,6 @@ namespace Belle {
 	    if(deg < 17 || deg> 150)
 	      continue;
 	    addBremsPhoton(p);
-
-
 	  }
 	if(fabs(p->pType().lund())==PY_MU)
 	  {
@@ -1089,7 +1153,7 @@ namespace Belle {
 	// do mis pid weighting for charged particles which we id'ed by now
 	//note that particles that are part of the tag, and that shouldn't be weighted are not part of this loop (we checked earlier)
 	//pi0 and ks misid later...
-
+      
 
 	if(m_mc)
 	  {
@@ -1098,9 +1162,25 @@ namespace Belle {
 	      {
 		//		cout <<"thought we had " << p->pType().lund() <<" but we have " << hepEvt.idhep()<<endl;
 	      }
-	    pidWeight*=pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr);
+	    PIDCorrections::pidRet mPidRet;
+	    mPidRet.misIdType=-1;
+	    pair<float,float> ret=pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr,mPidRet);
+	    //correction actually applied
+	    if(mPidRet.misIdType>-1)
+	      {
+		treeData.ChargedCorrection[treeData.numChargedCorr]=ret.first;
+		treeData.sChargedCorrection[treeData.numChargedCorr]=ret.second;
+		treeData.ChargedCorrMomBin[treeData.numChargedCorr]=mPidRet.momBin;
+		treeData.ChargedCorrThetaBin[treeData.numChargedCorr]=mPidRet.thetaBin;
+		treeData.ChargedCorrSVDBin[treeData.numChargedCorr]=mPidRet.svdBin;
+		treeData.ChargedCorrMisIdType[treeData.numChargedCorr]=mPidRet.misIdType;
+		treeData.numChargedCorr++;
+	      }
+
+	    pidWeight*=ret.first;
+	    sPidWeight+=(ret.second*ret.second)/(ret.first*ret.first);
 	    //	  if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-	    if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+	    //	    if(pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr).first<0.0)
 	      {
 		//	      cout <<"charged pidweight : " << pidCorrections.getWeight(hepEvt.idhep(), p->pType().lund(), p->ptot(), p->p3().theta(),expNr,runNr) << ", "<<hepEvt.idhep() <<" rec: "<< p->pType().lund() <<" p toto : " << p->ptot() <<" theta: " << p->p3().theta() << " exp: "<< expNr <<" run  " << runNr <<endl;
 	      }
@@ -1193,8 +1273,6 @@ namespace Belle {
 	      }
 	  }
 
-
-
 	double px=pi0.px();
 	double py=pi0.py();
 	double pz=pi0.pz();
@@ -1247,6 +1325,7 @@ namespace Belle {
 	//	cout <<"mass; " << pi0.mass()<<endl;
 
 	p->userInfo(*(new ParticleInfoMass()));
+
 	ParticleInfoMass& pinf=dynamic_cast<ParticleInfoMass&>(p->userInfo());
 	pinf.gammaE1=g1Energy;
 	pinf.gammaE2=g2Energy;
@@ -1257,11 +1336,20 @@ namespace Belle {
 	//      v_drAll.push_back();
 	if(m_mc)
 	  {
-	    pidWeight*=pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr);
+	    PIDCorrections::pidRet mPidRet;
+	    pair<float, float> ret=pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr,mPidRet);
+	    pidWeight*=ret.first;
+	    sPidWeight+=(ret.second*ret.second)/(ret.first*ret.first);
+	    treeData.pi0Correction[treeData.numPi0Corr]=ret.first;
+	    treeData.sPi0Correction[treeData.numPi0Corr]=ret.second;
+	    treeData.pi0MomBin[treeData.numPi0Corr]=mPidRet.momBin;
+	    treeData.numPi0Corr++;
+
+
 	    //	  if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)>2.0)
-	    if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr)<0.0)
+		//	    if(pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr).first<0.0)
 	      {
-		cout <<"pi0 pidweight : " << pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr) <<endl;
+		//		cout <<"pi0 pidweight : " << pidCorrections.getWeight(-1,111,p->ptot(), p->p3().theta(),expNr,runNr).first <<endl;
 	      }
 	  }
       }
@@ -1298,10 +1386,8 @@ namespace Belle {
 	    double gammaE=sqrt(px*px+py*py+pz*pz);
 	    v_gammaE.push_back(gammaE);
 	  }
-
-	
       }
-
+    //        cout <<"num d0cands: "<< D0Candidates.size() <<" chargedDs: "<< chargedDCandidates.size()<< " star: "<< DStarCandidates.size()<<endl;
 
     //------------------------------------------------------------------------------------
     //------------------------------------------------------------------------------------
@@ -1449,9 +1535,16 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
     treeData.bestBCharge=bestBcand.charge();
 
+    /////
     treeData.pidCorrection=pidWeight;
+    treeData.sPidCorrection=sqrt(sPidWeight)*pidWeight;
     treeData.CrossSectionLumiCorrection=XSectionWeight*lumiWeight;
-    treeData.FFCorrection=ffWeight;
+    treeData.sCrossSectionLumiCorrection=sqrt(sXSectionWeight*sXSectionWeight/(XSectionWeight*XSectionWeight)+sLumiWeight*sLumiWeight/(lumiWeight*lumiWeight))*XSectionWeight*lumiWeight;
+    //    cout <<"set sCrossLumi to : " << treeData.sCrossSectionLumiCorrection;
+    //    cout <<" sX: "<< sXSectionWeight <<" lumi: "<< sLumiWeight << " weight: "<< treeData.CrossSectionLumiCorrection <<endl;
+
+    treeData.sRelTrackingCorrection=sqrt(sTracking);
+    treeData.numTracks=numTracks;
 
 
 
@@ -1591,7 +1684,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    ///	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0&&numPions>=1&&numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
 	    //adding zero pions
 	    bool recDecaySignature=numOtherTracks==0&&numExtraKaons==0 && numPions>=0 && numPions<=2 &&leptonCandidates.size()==1 && fabs(pionCharge+leptonCharge+dCharge)<=1.0;
-	  
+	    //	    cout <<"recDecaySignature: " << recDecaySignature<<endl;
+	    //	    cout <<"numPions: "<<numPions <<" numExtraKaons: "<< numExtraKaons <<" other: "<< numOtherTracks <<" leptons:" << leptonCandidates.size() <<" charges: "<< pionCharge+leptonCharge+dCharge <<endl;
 
 	    //	    cout <<" using pidWeight: "<< pidWeight <<" B Br weight: " << B_BR_CorrectionFactor << " D BR factor: "<< D_BR_CorrectionFactor<<endl;
 	    treeData.systemCharge[treeData.size]=pionCharge+leptonCharge+dCharge;
@@ -1696,7 +1790,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		float E_miss=p4Miss.e();
 		U=E_miss-p4Miss.vect().mag();
 
-		mNu2=(kinematics::pBeam-bMomentum-Pxl).mag2();
+		mNu2=(kinematics::pBeam-bMomentum-Pxl).mag2(); 
 		if(mNu2<bestMNu2)
 		  {
 		    bestMNu2=mNu2;
@@ -1904,7 +1998,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		      {
 			if(numPions==2&& sig_FoundDDoubleStar)
 			  {
-			    cout <<" found DDstar and two pions" <<endl;
+			    //			    cout <<" found DDstar and two pions" <<endl;
 			  }
 		      }
 		    if(PRINT)
@@ -2049,7 +2143,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 	  }/// for all Ds
       } ///for all DTypes
-  
+    
     /////--->Don't select best D based on mNu2 (bias), instead using best Ds (separately for n12, D and DStar
     bool singlePionEvent=false;
     bool twoPionEvent=false;
@@ -2111,7 +2205,31 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	//	cout <<"saving tree, bgFlag: "<< bgFlag <<endl;
 	//	cout <<"saving tree, DD flag: "<<  foundDDStarFlag << endl;
 	//	cout <<"saving have pidweight: "<< treeData.pidCorrection<<endl;
+
+
+
+    float tempWeight=1.0;
+    for(int i1=0;i1<treeData.numKsCorr;i1++)
+      {
+	tempWeight*=treeData.KsCorrection[i1];
+      }
+    for(int i1=0;i1<treeData.numChargedCorr;i1++)
+      {
+	tempWeight*=treeData.ChargedCorrection[i1];
+      }
+    for(int i1=0;i1<treeData.numPi0Corr;i1++)
+      {
+	tempWeight*=treeData.pi0Correction[i1];
+      }
+        cout <<" tempWeight: "<< tempWeight <<" pidWeight: "<< pidWeight <<endl;
+    //
+
 	saveTree();
+	if(dDoubleStarId==100423)
+	  {
+	    //	    cout <<"saving found the 2S with mass " << mcMassDDStar<<endl;
+	  }
+
 	//	cout <<"indeed foundRec " <<endl;
       }
     //so as not to save twice
@@ -2122,6 +2240,11 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	//		cout <<"mc decay but not foundRec " <<endl;
 	
 	saveTree();
+	if(dDoubleStarId==100423)
+	  {
+	    //	    cout <<"saving found the 2S with mass " << mcMassDDStar<<endl;
+	  }
+
       }
     //    if(!mcDecaySignature && !foundRecDecay)
     //      cout <<"haven't found anything " <<endl;
@@ -2461,7 +2584,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
   }
 
-  void bToDDoubleStar::computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other)
+  void bToDDoubleStar::computeD_BR_CorrectionFactor(double& corrFact, double& corrUncert, int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other, int& decType)
   {
     float mc=1.0;
     float data=1.0;
@@ -2469,8 +2592,12 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     bool found=false;
     //    cout << "D decay: Kp: " << Kp << " Km: "<< Km <<" Ks: "<< Ks <<" Pip: " << Pip << " pim: " << Pim << " pi0: " << Pi0 << " other: "<< other <<endl;
     //Km Pip
+
+    //the error here is on the data, so the uncertainty on the weight is err/mc
+
     if(Km==1&& Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==0&& other==0)
       {
+	decType=0;
 	mc=0.0382;
 	data=0.0388;
 	error=0.0005;
@@ -2480,6 +2607,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //km pip pi0
     if(Km==1&& Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=1;
 	mc=0.130811;
 	data=0.139;
 	error=0.005;
@@ -2488,6 +2616,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //Km Pip Pip Pim
     if(Km==1&& Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=2;
 	mc=0.0708693;
 	data=0.0808;
 	error=0.002;
@@ -2496,6 +2625,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pip pim
     if(Km==0&& Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=3;
 	mc=0.0283637;
 	data=0.0283;
 	error=0.002;
@@ -2504,6 +2634,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pip pim pi0
     if(Km==0 && Pip==1 && Pim==1 && Ks==1 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=4;
 	mc=0.0517367;
 	data=0.052;
 	error=0.006;
@@ -2512,6 +2643,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //KsPi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=5;
 	mc=0.0113;
 	data=0.0119;
 	error=0.0004;
@@ -2522,6 +2654,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //kp km
     if(Km==1 && Pip==0 && Pim==0 && Ks==0 && Kp==1 && Pi0==0 && other==0)
       {
+	decType=6;
 	mc=0.0039;
 	data=0.00396;
 	error=0.00008;
@@ -2530,6 +2663,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pip pim 
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=7;
 	mc=0.0014;
 	data=0.001402;
 	error=0.000026;
@@ -2538,6 +2672,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks ks
     if(Km==0 && Pip==0 && Pim==0 && Ks==2 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=8;
 	mc=0.0004;
 	data=0.00017;
 	error=0.00004;
@@ -2546,6 +2681,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pi0 pi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==0 && Kp==0 && Pi0==2 && other==0)
       {
+	decType=9;
 	mc=0.0008;
 	data=0.00082;
 	error=0.000035;
@@ -2554,6 +2690,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //km pip pip
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=10;
 	mc=0.0950633;
 	data=0.0913;
 	error=0.0019;
@@ -2562,6 +2699,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //km pip pip pi0
     if(Km==1 && Pip==2 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=11;
 	mc=0.0601865;
 	data=0.0599;
 	error=0.0018;
@@ -2571,6 +2709,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pip
     if(Km==0 && Pip==1 && Pim==0 && Ks==1 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=12;
 	mc=0.0147;
 	data=0.0147;
 	error=0.0007;
@@ -2580,6 +2719,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pip pi0
     if(Km==0 && Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=13;
 	mc=0.0650925;
 	data=0.0699;
 	error=0.0027;
@@ -2588,6 +2728,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //kp km pip
     if(Km==1 && Pip==1 && Pim==0 && Ks==0 && Kp==1 && Pi0==0 && other==0)
       {
+	decType=14;
 	mc=0.00905861;
 	data=0.00954;
 	error=0.00026;
@@ -2596,6 +2737,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks kp
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==1 && Pi0==0 && other==0)
       {
+	decType=15;
 	mc=0.00295;
 	data=0.00283;
 	error=0.00016;
@@ -2604,6 +2746,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=16;
 	mc=0.0315685;
 	data=0.0312;
 	error=0.0011;
@@ -2612,6 +2755,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //km pip pip pim pi0
     if(Km==1 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=17;
 	mc=0.0398269;
 	data=0.042;
 	error=0.004;
@@ -2621,7 +2765,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
-
+	decType=18;
 	mc=0.0139744;
 	data=0.0143;
 	error=0.0006;
@@ -2631,6 +2775,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pip pim pi0 pi0
     if(Km==0 && Pip==1 && Pim==1 && Ks==0 && Kp==0 && Pi0==2 && other==0)
       {
+	decType=19;
 	mc=0.00528788;
 	data=0.01;
 	error=0.0009;
@@ -2640,6 +2785,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pip pip pim pi0
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=20;
 	mc=0.0115474;
 	data=0.0113;
 	error=0.0008;
@@ -2649,6 +2795,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //ks pi0 pi0
     if(Km==0 && Pip==0 && Pim==0 && Ks==1 && Kp==0 && Pi0==2 && other==0)
       {
+	decType=21;
 	mc=0.00927935;
 	data=0.0091;
 	error=0.0011;
@@ -2658,6 +2805,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pip pi0
     if(Km==0 && Pip==1 && Pim==0 && Ks==0 && Kp==0 && Pi0==1 && other==0)
       {
+	decType=22;
 	mc=0.0026;
 	data=0.00119;
 	error=0.00006;
@@ -2666,6 +2814,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //pip pip pim
     if(Km==0 && Pip==2 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=23;
 	mc=0.0037091;
 	data=0.00318;
 	error=0.00018;
@@ -2674,6 +2823,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //km pip pip pip pim
     if(Km==1 && Pip==3 && Pim==1 && Ks==0 && Kp==0 && Pi0==0 && other==0)
       {
+	decType=24;
 	mc=0.00620297;
 	data=0.0056;
 	error=0.0005;
@@ -2689,10 +2839,12 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    exit(1);
 	  }
 	corrFact=data/mc;
+	corrUncert=error/mc;
       }
     else
       {
 	corrFact=1.0;
+	corrUncert=0.0;
       }
 
   }
@@ -2964,12 +3116,21 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     //find best b
     float bestDistance=-1;
     Gen_hepevt_Manager::iterator bestB;
+    int numBs=0;
+    int oldLund=0;
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
 	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
 	if(geantID==PY_B0 || geantID==PY_B)
 	  {
-	    //	     recursivePrint(*gen_it,"");
+	    if(numBs==1 && oldLund==gen_it->idhep())
+	      {
+		//		cout <<"found " <<oldLund << " again !! " <<endl;
+	      }
+	    oldLund=gen_it->idhep();
+	    numBs++;
+	    //	    cout <<endl<<endl<<"top level B:"<<endl;
+	    //	    recursivePrint(*gen_it,"");
 	    float distanceToBestB= (gen_it->PX()-bestBPx)*(gen_it->PX()-bestBPx)+(gen_it->PY()-bestBPy)*(gen_it->PY()-bestBPy)+(gen_it->PZ()-bestBPz)*(gen_it->PZ()-bestBPz);
 	    //	    cout <<"distance to best b is: "<< distanceToBestB << " (before " << bestDistance <<" ) " <<endl;
 	    if(distanceToBestB<bestDistance|| bestDistance<0)
@@ -2981,8 +3142,11 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 	  }
       }
+    //    cout <<" found " << numBs << " numBs " <<endl;
+  
     ////////////////////
     D_BR_CorrectionFactor=1.0;
+    sRelD_BR_CorrFactor=0.0;
     for(Gen_hepevt_Manager::iterator gen_it=gen_hep_Mgr.begin();gen_it!=gen_hep_Mgr.end();gen_it++)
       {
 	int geantID=abs(gen_it->idhep());//plus is ok, since it is the abs value
@@ -3002,9 +3166,17 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    getDDecayProducts(*gen_it, Kp,Km,Ks,Pip,Pim,Pi0,other);
 	    //	    cout <<" we found " << Kp << " K+ " << ", " << Km <<" K- " << Ks << " Ks, " << Pip <<" Pi+, " << Pim << " Pi- , " << Pi0 << " pi0, " << other<<" others " <<endl;
 	    double tmpCorrFact=1.0;
-	    computeD_BR_CorrectionFactor(tmpCorrFact,Kp,Km,Ks,Pip,Pim,Pi0,other);
+	    double tmpRelErr=0.0;
+	    int dDecType=-1;
+	    computeD_BR_CorrectionFactor(tmpCorrFact,tmpRelErr,Kp,Km,Ks,Pip,Pim,Pi0,other,dDecType);
 	    //do this before we charge conjugate
-	    D_BR_CorrectionFactor*=tmpCorrFact;
+	    if(dDecType>=0)
+	      {
+		treeData.D_DecayCorr[treeData.numDDecCorr]=tmpCorrFact;
+		treeData.sD_DecayCorr[treeData.numDDecCorr]=tmpRelErr*tmpCorrFact;
+		treeData.D_decType[treeData.numDDecCorr]=dDecType;
+		treeData.numDDecCorr++;
+	      }
 	    //	    cout <<"computed corr factor: "<< tmpCorrFact<<endl;
 	    //and check for conjugate decay
 	    int tmp=Km;
@@ -3013,12 +3185,20 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    tmp=Pim;
 	    Pip=Pim;
 	    Pim=tmp;
+	    dDecType=-1;
 	    //	    cout <<"and conjugate.. " <<endl;
-	    computeD_BR_CorrectionFactor(tmpCorrFact,Kp,Km,Ks,Pip,Pim,Pi0,other);
+	    computeD_BR_CorrectionFactor(tmpCorrFact,tmpRelErr,Kp,Km,Ks,Pip,Pim,Pi0,other,dDecType);
+	    if(dDecType>=0)
+	      {
+		treeData.D_DecayCorr[treeData.numDDecCorr]=tmpCorrFact;
+		treeData.sD_DecayCorr[treeData.numDDecCorr]=tmpRelErr*tmpCorrFact;
+		treeData.D_decType[treeData.numDDecCorr]=dDecType;
+		treeData.numDDecCorr++;
+	      }
+
 	    //	    cout <<" and after charge conj:  we found " << Kp << " K+ " << ", " << Km <<" K- " << Ks << " Ks, " << Pip <<" Pi+, " << Pim << " Pi- , " << Pi0 << " pi0, " << other<<" others " <<endl;
 	    //	    cout <<" and corr fact now: " << tmpCorrFact<<endl;
 	    //might be several D's...
-	    D_BR_CorrectionFactor*=tmpCorrFact;
 	    //	    cout <<"overall D correction factor " <<D_BR_CorrectionFactor <<endl;
 
 	  }
@@ -3065,56 +3245,56 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	      {
 		br_sigs[i]=0;
 	      }
-
 	    HepLorentzVector p_D,p_l,p_nu;
 	    findDecaySignatureForBBRCorrection(*gen_it,tempNumLeptons,tempNumPions,tempNumKaons,tempNumPi0,tempNumBaryons, tempNumNu,br_sigs,p_D,p_l,p_nu);
 
-
-
-
-	    foundDDecayForFF=false;
-	    for(int i=0;i<=br_sig_D0Star0;i++)
-	      {
-		if(br_sigs[i]==1)
-		  {
-		    foundDDecayForFF=true;
-		    //		  cout <<"found D in B decay !!! " <<i << endl;
-		  }
-	      }
-	    if(foundDDecayForFF)
-	      {
-		HepLorentzVector signalBMomentum=Particle(*gen_it).p();
-		//copy of the vector to boost into B system
-		HepLorentzVector p_l2=p_l;
-		p_l2.boost(-(signalBMomentum.boostVector()));
-		ff_pL=p_l2.vect().mag();
-		w=(p_D.dot(signalBMomentum))/sqrt(p_D.dot(p_D)*signalBMomentum.dot(signalBMomentum));
-		HepLorentzVector p_W = p_l + p_nu;
-		p_l.boost(-(p_W.boostVector()));
-		p_D.boost(-(p_W.boostVector()));
-		cosTheta = cos( p_l.vect().angle( p_D.vect() ) );
-		q2 =(p_l+p_nu)*(p_l+p_nu);
-
-		//		cout <<"we have pL: "<< ff_pL <<" w: "<< w <<" cosTheta" << cosTheta <<" q2: "<< q2 <<endl;
-
-	      }
 	    ////////--
 	    //	    cout <<" get decay sig:numpions: "<< tempNumPions <<endl;
 
 	    //	        cout <<"found " << tempNumD << " Ds " << tempNumNu <<" Neutrinos " << tempNumPions <<" pions " << tempNumLeptons << " leptons " << tempFoundDDoubleStar <<" doublestar " << tempNumDStar2S << " star 2S " << tempNumKaons <<" kaons " << tempNumPi0 <<" pi0s " << tempNumBaryons <<" baryons " << tempNumDStar << " dstar " <<endl;
 
-	    int temp=0;
-	    for(int i=0;i<=br_sig_D0Star0;i++){temp+=br_sigs[i];};
+	    int foundBR=0;
+	    //	    cout <<" heck.." << endl;
+	    for(int i=0;i<=br_sig_D0Star0;i++){foundBR+=br_sigs[i];
+	      if(br_sigs[i])
+		{
+		  //		cout <<"found br : "<< i <<", " << foundBR<<endl;
+		}
+};
+	    if(foundBR>0)
+	      {
+		//		recursivePrint(*gen_it, "");
+	      }
 	    //	    if(temp>1)
 	    //	      cout <<" found more than one D(*(*)) in the decay! " << endl;
+	    if(tempNumNu==1 && tempNumLeptons==1 && tempNumPions==0&& tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0 && foundBR)
+	      {
+		    HepLorentzVector signalBMomentum=Particle(*gen_it).p();
+		    //copy of the vector to boost into B system
+		    HepLorentzVector p_l2=p_l;
+		    p_l2.boost(-(signalBMomentum.boostVector()));
+		    ff_pL=p_l2.vect().mag();
+		    w=(p_D.dot(signalBMomentum))/sqrt(p_D.dot(p_D)*signalBMomentum.dot(signalBMomentum));
+		    HepLorentzVector p_W = p_l + p_nu;
+		    p_l.boost(-(p_W.boostVector()));
+		    p_D.boost(-(p_W.boostVector()));
+		    cosTheta = cos( p_l.vect().angle( p_D.vect() ) );
+		    q2 =(p_l+p_nu)*(p_l+p_nu);
+		    //		    cout <<"p_l: "<< p_l <<" p_nu "<< p_nu <<endl;
+		    //		    cout <<"we have pL: "<< ff_pL <<" w: "<< w <<" cosTheta" << cosTheta <<" q2: "<< q2 <<endl;
+		    //		    cout <<"dssIdx: " << dssIdx << " ltype: "<< lType <<endl;
+		  }
+		else{
+		  //if we didn't find a decay of interest reset our flags so we can look again...
+		  dssIdx=-1;
+		  lType=-1;
+		}
 	  
 
 	    //implement FF corrections here, because we already determined the decay
 	    //however, we need the D, l and nu 4-momenta to compute the kinematics needed for the FF
 	    if(tempNumNu==1 && tempNumLeptons==1 && tempNumPions==0&& tempNumKaons==0 && tempNumPi0==0 && tempNumBaryons==0)
 	      {
-
-
 		if( br_sigs[br_sig_D0]==1)
 		  {
 		    br_sig_D0LNu=true;
@@ -3184,12 +3364,13 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 	    //and the other call for the 'regular' decay signature search where we trace the D decays
 	    findDecaySignature(*gen_it,tempFoundDDoubleStar,tempNumLeptons,tempNumPions,tempNumKaons,tempNumRhos,tempNumPi0,tempNumBaryons,tempNumD, tempNumDStar, tempNumNu,tempNumDStar2S, tempNumDStarD2S, tempDCharge);
-
-	    if(evtNr==74850 &&  runNr== 879)
+	if(dDoubleStarId==100423)
+	  //	    if(evtNr==74850 &&  runNr== 879)
 	      {
-		cout <<"tmpNumD: " << tempNumD << " numNu: " << tempNumNu <<" numLep: " << tempNumLeptons<<" Kaons? "<< tempNumKaons;
-		cout  <<" pions? " << tempNumPions <<" pi0? " << tempNumPi0 << " baryons? " << tempNumBaryons;
-		cout  <<" D*? " << tempNumDStar  <<" D**? " << tempFoundDDoubleStar <<" D*(2S)? " << tempNumDStar2S <<" D*(2SD) ? " << tempNumDStarD2S << endl;
+		//		recursivePrint(*gen_it,"");
+		//		cout <<"tmpNumD: " << tempNumD << " numNu: " << tempNumNu <<" numLep: " << tempNumLeptons<<" Kaons? "<< tempNumKaons;
+		//		cout  <<" pions? " << tempNumPions <<" pi0? " << tempNumPi0 << " baryons? " << tempNumBaryons;
+		//		cout  <<" D*? " << tempNumDStar  <<" D**? " << tempFoundDDoubleStar <<" D*(2S)? " << tempNumDStar2S <<" D*(2SD) ? " << tempNumDStarD2S << endl;
 	      }
 	    if((tempNumDStar==1|| tempNumD==1) && tempNumNu==1 && tempNumLeptons==1)
 	      {
@@ -3211,6 +3392,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 		    if(tempNumPions==1)
 		      {
+			//			if(dDoubleStarId==100423)
+			//			  cout <<"found dpppi" <<endl;
 			treeData.pi1Mom_mc=mc_piMom[0];
 			treeData.pi1Theta_mc=mc_piTheta[0];
 			treeData.pi1Phi_mc=mc_piPhi[0];
@@ -3240,7 +3423,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		  {
 		    if(tempNumPions<3)
 		      {
-
+			//			if(dDoubleStarId==100423)
+			//			  cout <<" and found rec " <<endl;
 			vector<int> candidateIds;
 			vector<int> candidatePids;
 			int numNu;
@@ -3275,6 +3459,7 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		    //		      cout <<"not best Dlnu..." <<endl;
 		    if(!tempFoundDDoubleStar && !tempNumDStar2S && !tempNumDStarD2S)
 		      {
+
 			if(tempNumPions==0)
 			  sigDLNu++;
 			if(tempNumPions==1)
@@ -3284,12 +3469,17 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		      }
 		    else
 		      {
+
 			if(tempNumPions==0)
 			  sigResDLNu++;
 			if(tempNumPions==1)
 			  sigResDPiLNu++;
 			if(tempNumPions==2)
 			  sigResDPiPiLNu++;
+			//			if(dDoubleStarId==100423)
+			//			  cout <<"foundres  dd double star, numpions:  " <<tempNumPions<< ", sigres: "<< sigResDPiLNu<<endl;
+
+
 		      }
 		  }
 
@@ -3314,6 +3504,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		      }
 		    else
 		      {
+			//			if(dDoubleStarId==100423)
+			//			  cout <<"found dd double star D*2 " << endl;
 			if(tempNumPions==0)
 			  sigResDStarLNu++;
 			if(tempNumPions==1)
@@ -3407,9 +3599,14 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 
 
 		  }
-		B_BR_CorrectionFactor=getBRCorrection();
+		int decType=-1;
+		pair<float,float> ret=getBRCorrection(decType);
+		B_BR_CorrectionFactor=ret.first;
 		treeData.B_DecayCorr=B_BR_CorrectionFactor;
-		treeData.D_DecayCorr=D_BR_CorrectionFactor;
+		treeData.B_decType=decType;
+		treeData.sB_DecayCorr=ret.second;
+		//		cout <<" sB factor" << ret.second <<" corr: " << ret.first <<endl;
+		//		cout <<"setting sB_decaycorr to " << ret.second <<endl;
 		//cout <<"B cor factor: "<< B_BR_CorrectionFactor << " D: "<< D_BR_CorrectionFactor <<endl;
 		float mom=sqrt((*it)->PX()*(*it)->PX()+(*it)->PY()*(*it)->PY()+(*it)->PZ()*(*it)->PZ());
 		if(daughterId==12|| daughterId==14|| daughterId==16)
@@ -3778,9 +3975,6 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	//get momentum
 	p_D=p.p();
       }
-
-
-    
     if(lund==PY_D0)
       {
 	//cout <<"d0" <<endl;
@@ -3923,7 +4117,26 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
       {
 	dDoubleStar=true;
 	dDoubleStarId=lund;
+	//// get the reconstructed mass of the D**, use all channels
+	double recPx=0;
+	double recPy=0;
+	double recPz=0;
+	double recE=0;
+	for(genhep_vec::iterator it=daughters->begin();it!=daughters->end();it++)
+	  {
+	    recPx+=(*it)->PX();
+	    recPy+=(*it)->PY();
+	    recPz+=(*it)->PZ();
+	    recE+=(*it)->E();
+	  }
+	TLorentzVector tlv(recPx,recPy,recPz,recE);
+	mcMassDDStar=tlv.M();
+	if(dDoubleStarId==100423)
+	  {
+	    //	    cout <<"found the 2S with mass " << mcMassDDStar<<endl;
+	  }
       }
+
     if(lund==100421|| lund==100411)
       d_2S=true;
     if(lund==100423|| lund==100413)
@@ -4352,6 +4565,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_D0;
+	    pinf.mRec=m;
+	    pinf.mDRec=m;
 
 	    //putddecay
 	    //	if(!doKmVtxFit2(*(*itD),  confLevel,0))
@@ -4445,6 +4660,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		pinf.decayChannel=dDecay;
 		pinf.type=dType;
 		pinf.pdgDiff=m-m_D0;
+		pinf.mRec=m;
+		pinf.mDRec=m;
 		d0->relation().append(kaon);
 		d0->relation().append(pion);
 		d0->relation().append(pi0);
@@ -4531,6 +4748,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		    pinf.decayChannel=dDecay;
 		    pinf.type=dType;
 		    pinf.pdgDiff=m-m_D0;
+		    pinf.mRec=m;
+		    pinf.mDRec=m;
 		    d0->relation().append(kaon);
 		    d0->relation().append(pion1);
 		    d0->relation().append(pion2);
@@ -4628,6 +4847,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		pinf.decayChannel=dDecay;
 		pinf.type=dType;
 		pinf.pdgDiff=m-m_D0;
+		pinf.mDRec=m;
+		pinf.mRec=m;
 		d0->relation().append(pion1);
 		d0->relation().append(pion2);
 		d0->relation().append(Ks);
@@ -4702,6 +4923,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_D0;
+	    pinf.mDRec=m;
+	    pinf.mRec=m;
 	    d0->relation().append(kaon1);
 	    d0->relation().append(kaon2);
 	    if(m_mc)
@@ -4773,6 +4996,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_D0;
+	    pinf.mDRec=m;
+	    pinf.mRec=m;
 	    d0->relation().append(pi0);
 	    d0->relation().append(Ks);
 	    if(m_mc)
@@ -4851,6 +5076,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_DPlus;
+	    pinf.mDRec=m;
+	    pinf.mRec=m;
 	    dPlus->relation().append(Ks);
 	    dPlus->relation().append(pion);
 	    if(m_mc)
@@ -4939,6 +5166,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		    pinf.decayChannel=dDecay;
 		    pinf.type=dType;
 		    pinf.pdgDiff=m-m_DPlus;
+		    pinf.mDRec=m;
+		    pinf.mRec=m;
 
 		    dPlus->relation().append(Ks);
 		    dPlus->relation().append(pion1);
@@ -5031,6 +5260,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		pinf.decayChannel=dDecay;
 		pinf.type=dType;
 		pinf.pdgDiff=m-m_DPlus;
+		pinf.mDRec=m;
+		pinf.mRec=m;
 
 		dPlus->relation().append(pion1);
 		dPlus->relation().append(pion2);
@@ -5115,6 +5346,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 		pinf.decayChannel=dDecay;
 		pinf.type=dType;
 		pinf.pdgDiff=m-m_DPlus;
+		pinf.mDRec=m;
+		pinf.mRec=m;
 
 		dPlus->relation().append(kaon1);
 		dPlus->relation().append(kaon2);
@@ -5179,7 +5412,6 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    if(doubleUse)
 	      continue;
 
-
 	    HepLorentzVector p_dStar=D.p()+pi0.p();
 	    double m=p_dStar.mag();
 	    dMass=m;
@@ -5229,7 +5461,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_DStarPlus;
-
+	    pinf.mRec=m;
+	    pinf.mDRec=d_pinf.m;
 	    dStar->relation().append(D);
 	    dStar->relation().append(pi0);
 	    if(m_mc)
@@ -5310,6 +5543,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 	    pinf.pdgDiff=m-m_DStarPlus;
+	    pinf.mRec=m;
+	    pinf.mDRec=d_pinf.m;
 	    dStar->relation().append(D);
 	    dStar->relation().append(pion);
 	    if(m_mc)
@@ -5397,6 +5632,8 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	    pinf.childType=d_pinf.type;
 	    pinf.childPdgDiff=d_pinf.pdgDiff;
 	    pinf.pdgDiff=m-m_DStar0;
+	    pinf.mRec=m;
+	    pinf.mDRec=d_pinf.m;
 	    pinf.decayChannel=dDecay;
 	    pinf.type=dType;
 
@@ -5522,87 +5759,131 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
     return ret;
   }
 
-  float bToDDoubleStar::getBRCorrection()
+
+  //returns correction factor and (absolute)uncertainty
+  pair<float,float> bToDDoubleStar::getBRCorrection(int& decType)
   {
     float mc=1.0;
     float data=1.0;
-    float error;
+    float error=0.0;
+
+    float corrFactor=1.0;
+    float relError=0.0;
 
     if(br_sig_D0LNu)
       {
+	decType=0;
 	mc=mcFactors[br_sig_D0];
 	data= dataFactors[br_sig_D0];
 	error=dataFactorError[br_sig_D0];
+	corrFactor*=(data/mc);
+	//the division by mc cancels
+	relError+=error*error/(data*data);
+
       }
     if(br_sig_DLNu)
       {
+	decType=1;
 	//	cout <<"correction... d lnu" <<endl;
 	mc= mcFactors[br_sig_D];
 	data= dataFactors[br_sig_D];
 	error=dataFactorError[br_sig_D];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
+
       }
     if(br_sig_DStarLNu)
       {
+	decType=2;
 	//	cout <<"correction... dstar lnu" <<endl;
 	mc= mcFactors[br_sig_DStar];
 	data= dataFactors[br_sig_DStar];
 	error=dataFactorError[br_sig_DStar];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
 
     if(br_sig_DStar0LNu)
       {
+	decType=3;
 	mc= mcFactors[br_sig_DStar0];
 	data= dataFactors[br_sig_DStar0];
 	error=dataFactorError[br_sig_DStar0];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D1LNu)
       {
+	decType=4;
 	mc= mcFactors[br_sig_D1];
 	data= dataFactors[br_sig_D1];
 	error=dataFactorError[br_sig_D1];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D2LNu)
       {
+	decType=5;
 	mc= mcFactors[br_sig_D2];
 	data= dataFactors[br_sig_D2];
 	error=dataFactorError[br_sig_D2];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
 
     if(br_sig_D1PrimeLNu)
       {
+	decType=6;
 	mc= mcFactors[br_sig_D1Prime];
 	data= dataFactors[br_sig_D1Prime];
 	error=dataFactorError[br_sig_D1Prime];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D0StarLNu)
       {
+	decType=7;
 	mc= mcFactors[br_sig_D0Star];
 	data= dataFactors[br_sig_D0Star];
 	error=dataFactorError[br_sig_D0Star];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D10LNu)
       {
+	decType=8;
 	mc= mcFactors[br_sig_D10];
 	data= dataFactors[br_sig_D10];
 	error=dataFactorError[br_sig_D10];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D20LNu)
       {
+	decType=9;
 	mc= mcFactors[br_sig_D20];
 	data= dataFactors[br_sig_D20];
 	error=dataFactorError[br_sig_D20];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D1Prime0LNu)
       {
+	decType=10;
 	mc= mcFactors[br_sig_D1Prime0];
 	data= dataFactors[br_sig_D1Prime0];
 	error=dataFactorError[br_sig_D1Prime0];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(br_sig_D0Star0LNu)
       {
+	decType=11;
 	mc= mcFactors[br_sig_D0Star0];
 	data= dataFactors[br_sig_D0Star0];
 	error=dataFactorError[br_sig_D0Star0];
+	relError+=error*error/(data*data);
+	corrFactor*=(data/mc);
       }
     if(!mc || !data)
       {
@@ -5613,17 +5894,18 @@ if(!doKmVtxFit2(*(*itD),  confLevel,0))
 	  }
 	exit(1);
       }
-    return data/mc;
+    //    return data/mc;
 
-
+    //this enables to have a multiplicative factor
+   return  pair<float,float>(corrFactor,sqrt(relError)*corrFactor);
 
   }
+
   float bToDDoubleStar::calcBRCorrection()
   {
     //differentiate in MC and data
     //need to correct for Dlnu and the hadronic D decay
     cout <<"calculating br corrections" << endl;
-
     //DStarlNu
     mcFactors[br_sig_DStar]=0.0533;
     dataFactors[br_sig_DStar]=0.0493;

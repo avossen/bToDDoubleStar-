@@ -26,10 +26,10 @@
 using namespace std;
 
 
-float PIDCorrections::getXSectionCorrection(bool isMC, int mcType)
+pair<float,float> PIDCorrections::getXSectionCorrection(bool isMC, int mcType)
 {
   if(!isMC)
-    return 1.0;
+    return pair<float,float>(1.0,0.0);
 
   //  mixed: 1001
   //    charged: 1002
@@ -52,17 +52,20 @@ float PIDCorrections::getXSectionCorrection(bool isMC, int mcType)
 
   float mcX=1.0;
   float dataX=1.0;
+  float eRatio=0.0;
   //mixed
   if(mcType==1001)
     {
        mcX=0.5*mcXSectionBB;
        dataX=rdXSectionBB*rdY4S_neutralBXSection;
+       eRatio=eRdY4S_neutralBXSection*rdXSectionBB;
     }
   //charged
   if(mcType==1002)
     {
       mcX=0.5*mcXSectionBB;
       dataX=rdXSectionBB*rdY4S_chargedBXSection;
+      eRatio=eRdY4S_chargedBXSection*rdXSectionBB;
     }
   //charm
   if(mcType==1003)
@@ -77,38 +80,44 @@ float PIDCorrections::getXSectionCorrection(bool isMC, int mcType)
       mcX=mcXSectionUDS+mcXSectionCharm;
       dataX=rdXSectionUDSC;
     }
-  return dataX/mcX;
+  return pair<float,float>(dataX/mcX,eRatio/mcX);
 }
 
-float PIDCorrections::getLumiCorrection(int exp)
+pair<float,float> PIDCorrections::getLumiCorrection(int exp)
 {
-  return rdLumi[exp]/mcLumi[exp];
+  //apparently no significant systematic uncertainty
+  return pair<float,float>(rdLumi[exp]/mcLumi[exp],0.0);
 
 };
-float PIDCorrections::getWeight(int mcLund, int dataLund, float mom, float theta,int expNr, int runNr)
+
+//return value and uncertainty
+pair<float,float> PIDCorrections::getWeight(int mcLund, int dataLund, float mom, float theta,int expNr, int runNr,pidRet& mRet)
 {
+
   int absLund=fabs(dataLund);
   int absMC=fabs(mcLund);
   if((absLund==211 || absLund==321) && (absMC==211 || absMC==321))
     {
-      return getWeightChargedHadron(mcLund,dataLund,mom,theta,expNr);
+      return getWeightChargedHadron(mcLund,dataLund,mom,theta,expNr, mRet);
     }
-  if((absLund==11 || absLund==13) && (absMC==211 || absMC==321))
+
+  //found lepton which is pion kaon or efficiency weight of correctly identified lepton
+  if((absLund==11 || absLund==13) && (absMC==211 || absMC==321 || (absLund==11 && absMC==11) || (absLund==13 && absMC==13)))
     {
-      return getWeightLepton(mcLund,dataLund,mom,theta,expNr,runNr);
+      return getWeightLepton(mcLund,dataLund,mom,theta,expNr,runNr, mRet);
     }
   //pi0
   if(absLund==111)
     {
-      return getWeightPi0(mom);
+      return getWeightPi0(mom,mRet);
     }
   //ks
   if(absLund==310)
-    return getWeightKs(mom,theta);
+    return getWeightKs(mom,theta,mRet);
 
-  return 1.0;
+  return pair<float,float>(1.0,0.0);
 }
-float PIDCorrections::getWeightLepton(int mcLund, int dataLund, float mom, float theta,int expNr, int runNr)
+pair<float,float> PIDCorrections::getWeightLepton(int mcLund, int dataLund, float mom, float theta,int expNr, int runNr, pidRet& mPidRet)
 {
   int absLundData=fabs(dataLund);
   int absLundMC=fabs(mcLund);
@@ -127,18 +136,25 @@ float PIDCorrections::getWeightLepton(int mcLund, int dataLund, float mom, float
       thetaBin=getBin(limitsThetaMu,cos(theta));
     }
 
+
+  mPidRet.thetaBin=thetaBin;
+  mPidRet.momBin=momBin;
+  mPidRet.svdBin=0;
   if(absLundData==11)
     {
       if(absLundMC==321)
 	{
-	  return k2e[thetaBin][momBin];
+	  mPidRet.misIdType=4;
+	  return pair<float,float>(k2e[thetaBin][momBin],k2e_err[thetaBin][momBin]);
 	}
       else
 	{
-	  return pi2e[thetaBin][momBin];
+	  mPidRet.misIdType=5;
+	  return pair<float,float>(pi2e[thetaBin][momBin],pi2e_err[thetaBin][momBin]);
 	}
       if(absLundMC==11)
 	{
+	  mPidRet.misIdType=6;
 	  //theta bin is the same as for fakes, but mom bin is different
 	  momBin=getBin(limitsLeptonPEff,mom);
 	  ///		  leptonEff[1][iTbl-2][momBin][thetaBin]=r;
@@ -146,21 +162,30 @@ float PIDCorrections::getWeightLepton(int mcLund, int dataLund, float mom, float
 	  int tableI=0;
 	  if(expNr>=31)
 	    tableI=1;
-	  return leptonEff[0][tableI][momBin][thetaBin];
+
+	  mPidRet.svdBin=tableI;
+	  float err=leptonEffStat[0][tableI][momBin][thetaBin]*leptonEffStat[0][tableI][momBin][thetaBin];
+	  err+=leptonEffSys1[0][tableI][momBin][thetaBin]*leptonEffSys1[0][tableI][momBin][thetaBin];
+	  err+=leptonEffSys2[0][tableI][momBin][thetaBin]*leptonEffSys2[0][tableI][momBin][thetaBin];
+
+	  return pair<float,float>(leptonEff[0][tableI][momBin][thetaBin],sqrt(err));
 	}
     }
   if(absLundData==13)
     {
       if(absLundMC==321)
 	{
-	  return k2mu[thetaBin][momBin];
+	  mPidRet.misIdType=7;
+	  return pair<float,float>(k2mu[thetaBin][momBin],k2mu_err[thetaBin][momBin]);
 	}
       else
 	{
-	  return pi2mu[thetaBin][momBin];
+	  mPidRet.misIdType=8;
+	  return pair<float,float>(pi2mu[thetaBin][momBin],pi2mu_err[thetaBin][momBin]);
 	}
       if(absLundData==13)
 	{
+	  mPidRet.misIdType=9;
 	  ///efficiency momentum bins are different
 	  momBin=getBin(limitsLeptonPEff,mom);
 	  int tableI=0;
@@ -170,81 +195,125 @@ float PIDCorrections::getWeightLepton(int mcLund, int dataLund, float mom, float
 	    tableI=2;
 	  if(expNr>49)
 	    tableI=3;
-	  return leptonEff[1][tableI][momBin][thetaBin];
+
+	  mPidRet.svdBin=tableI;
+
+	  float err=leptonEffStat[1][tableI][momBin][thetaBin]*leptonEffStat[1][tableI][momBin][thetaBin];
+	  err+=leptonEffSys1[1][tableI][momBin][thetaBin]*leptonEffSys1[1][tableI][momBin][thetaBin];
+	  err+=leptonEffSys2[1][tableI][momBin][thetaBin]*leptonEffSys2[1][tableI][momBin][thetaBin];
+
+	  return pair<float,float>(leptonEff[1][tableI][momBin][thetaBin],sqrt(err));
 	}
     }
 
 }
 
-float PIDCorrections::getWeightPi0(float mom)
+pair<float,float> PIDCorrections::getWeightPi0(float mom, pidRet& mPidRet)
 {
   int momBin=getBin(limitsPi0P,mom);
-  return pi0Eff[momBin];
+  mPidRet.momBin=momBin;
+  return pair<float,float>(pi0Eff[momBin],pi0EffStat[momBin]);
 }
 
-float PIDCorrections::getWeightKs(float mom, float theta)
+pair<float,float> PIDCorrections::getWeightKs(float mom, float theta, pidRet& mPidRet)
 {
 
   float cosTheta=cos(theta);
-  //r=100.06 %, error 3.75 %
+
+  float weight=1.0;
+  float relErr=0.0;
+  //r=100.06 %, error 3.75 %, fine to just return 3.75% because the weight is pretty much equal to one
+  mPidRet.momBin=0;
+  mPidRet.thetaBin=0;
   if(mom < 0.5)
-    return 1.0006;
+    {
+      mPidRet.momBin=0;
+      mPidRet.thetaBin=0;
+      return pair<float,float>(1.0006,0.0375);
+    }
   if(mom>0.5 && mom< 1.5)
     {
+      mPidRet.momBin=1;
       if(cosTheta<-0.5)
 	{
-	  //err 3.52%
-	  return 0.9808;
+	  mPidRet.thetaBin=0;
+	  relErr=0.0352;
+	  weight=0.9808;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>-0.5 && cosTheta<0)
 	{
-	  //err 0.87%
-	  return 0.9716;
+	  mPidRet.thetaBin=1;
+	  relErr=0.0087;
+	  weight= 0.9716;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>0 && cosTheta <0.5)
 	{
-	  //err 0.75%
-	  return 0.9729;
+	  mPidRet.thetaBin=2;
+	  relErr= 0.0075;
+	  weight= 0.9729;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>0.5)
 	{
-	  //err 1.04%
-	  return 0.9863;
+	  mPidRet.thetaBin=3;
+	  relErr=0.0104;
+	  weight=0.9863;
+	  return pair<float,float>(weight,relErr*weight);
 	}
     }
   if(mom > 1.5)
     {
+      mPidRet.momBin=2;
+
       if(cosTheta<-0.5)
 	{
-	  //err 3.84%
-	  return 0.9423;
+	  mPidRet.thetaBin=0;
+	  relErr=0.0384;
+	  weight= 0.9423;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>-0.5 && cosTheta<0)
 	{
-	  //err 2.3%
-	  return 0.9657;
+	  mPidRet.thetaBin=1;
+	  relErr=0.023;
+	  weight=0.9657;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>0 && cosTheta <0.5)
 	{
-	  //err 1.18%
-	  return 0.9984;
+	  mPidRet.thetaBin=2;
+	  relErr= 0.0118;
+	  weight= 0.9984;
+	  return pair<float,float>(weight,relErr*weight);
 	}
       if(cosTheta>0.5)
 	{
-	  //err 1.22%
-	  return 0.9938;
+	  mPidRet.thetaBin=3;
+	  relErr=0.0122;
+	  weight=0.9938;
+	  return pair<float,float>(weight,relErr*weight);
 	}
     }
-  return 1.0;
+  return pair<float,float>(weight,relErr*weight);
+  
 
 }
-float PIDCorrections::getWeightChargedHadron(int mcLund, int dataLund, float mom, float theta,int expNr)
+pair<float,float> PIDCorrections::getWeightChargedHadron(int mcLund, int dataLund, float mom, float theta,int expNr, pidRet& mPidRet)
 {
   int momBin=getBin(pLabBoundary,mom);
   int cosThetaBin=getBin(cosThetaBoundary,cos(theta));
   int svdBin=0;
+  mPidRet.momBin=momBin;
+  mPidRet.thetaBin=cosThetaBin;
+  mPidRet.svdBin=svdBin;
+  mPidRet.misIdType=0;
+
   if(expNr>=31)
     svdBin=1;
+
+  mPidRet.svdBin=svdBin;
   //pion
   int iPid=0;
   //eff
@@ -263,7 +332,10 @@ float PIDCorrections::getWeightChargedHadron(int mcLund, int dataLund, float mom
   //  cout <<" looking at mom: " << mom << " theta: "<< theta <<" cos(theta): " << cos(theta) <<" mom bin: " << momBin <<" cosThetaBin: " << cosThetaBin <<" ratio: ";
   //  cout <<ratio[svdBin][iPid][iKind][cosThetaBin][momBin] <<endl;
   
- return ratio[svdBin][iPid][iKind][cosThetaBin][momBin];
+  mPidRet.misIdType=iPid*2+iKind;
+  float err=ratioStat[svdBin][iPid][iKind][cosThetaBin][momBin]*ratioStat[svdBin][iPid][iKind][cosThetaBin][momBin]+ratioSys[svdBin][iPid][iKind][cosThetaBin][momBin]*ratioSys[svdBin][iPid][iKind][cosThetaBin][momBin];;
+  err=sqrt(err);
+  return pair<float,float>(ratio[svdBin][iPid][iKind][cosThetaBin][momBin],err);
 
 }
 

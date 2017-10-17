@@ -8,6 +8,7 @@ do
 for stream in 0 1 2 3 4 
 do
 find /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e0000$ex/evtgen-$spec/s0$stream/  -iname '*.mdst' > listsXlNuMC/xlnuMC_ex$ex\_$res\_$spec\_$stream.list
+find /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e0000$ex/evtgen-$spec/s1$stream/  -iname '*.mdst' >> listsXlNuMC/xlnuMC_ex$ex\_$res\_$spec\_$stream.list
 done
 done
 done

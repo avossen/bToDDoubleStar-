@@ -1,3 +1,4 @@
+
 #ifndef PIDCorrections__H
 #define PIDCorrections__H
 #include <iostream>
@@ -15,6 +16,18 @@ class PIDCorrections
 {
 
  public:
+
+
+  struct  pidRet{
+    int thetaBin;
+    int momBin;
+    //this will also encode the run, exp ranges for lepton/hadron tables
+    int svdBin;
+    //encodes hadron/lepton type as well... 0-3 for KP, the rest for the leptons
+    int misIdType;
+  };
+
+
   PIDCorrections(float kidCut=0.6, float piCut=0.4){
     mPidCut=piCut;
     mKidCut=kidCut;
@@ -295,14 +308,14 @@ class PIDCorrections
 
 };
 
-  float getWeight(int mcLund, int dataLund, float mom, float theta, int expNr, int runNr);
-  float getWeightChargedHadron(int mcLund, int dataLund, float mom, float theta, int expNr);
-  float getWeightPi0(float mom);
-  float getWeightKs(float mom, float theta);
-  float getWeightLepton(int mcLund, int dataLund, float mom, float theta, int expNr, int runNr);
+  pair<float,float> getWeight(int mcLund, int dataLund, float mom, float theta, int expNr, int runNr, pidRet& mPidRet);
+  pair<float,float> getWeightChargedHadron(int mcLund, int dataLund, float mom, float theta, int expNr, pidRet& mPidRet);
+  pair<float,float> getWeightPi0(float mom, pidRet& mPidRet);
+  pair<float,float> getWeightKs(float mom, float theta, pidRet& mPidRet);
+  pair<float,float> getWeightLepton(int mcLund, int dataLund, float mom, float theta, int expNr, int runNr, pidRet& mPidRet);
 
-  float getLumiCorrection(int exp);
-  float getXSectionCorrection(bool isMC, int mcType);
+  pair<float,float> getLumiCorrection(int exp);
+  pair<float,float> getXSectionCorrection(bool isMC, int mcType);
 
  protected:
     map<int,float> rdLumi;

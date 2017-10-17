@@ -35,7 +35,7 @@ module put_parameter bToDDoubleStar rfname\mcEx55.root
 initialize
 nprocess set 0
 histogram define ${HBKFILE}
-process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000003r000040-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst
+#process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000003r000040-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 1000
 
 
 process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000041r000066-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
@@ -49,20 +49,20 @@ process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/ev
 
 process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000913r000935-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
 
-process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000969r000976-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
-process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001096r001136-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
-process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001191r001209-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001346r001355-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001373r001416-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001417r001431-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001709r001726-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000422r000464-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000207r000227-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- 
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000372r000421-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000466r000491-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
- 
- 
+#process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000969r000976-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+#process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001096r001136-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+#process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001191r001209-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001346r001355-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001373r001416-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001417r001431-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r001709r001726-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000422r000464-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000207r000227-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# 
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000372r000421-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s00/xlnu-e000055r000466r000491-s00-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
+# 
+# 
 # process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s01/xlnu-e000055r000003r000040-s01-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
 # process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s01/xlnu-e000055r000041r000066-s01-evtgen-mixed-on_resonance-b20090127_0910.mdst 0
 # process_event /ghi/fs01/belle/bdata2/users/robin/xlnu/mc/on_resonance/e000055/evtgen-mixed/s01/xlnu-e000055r000068r000123-s01-evtgen-mixed-on_resonance-b20090127_0910.mdst 0

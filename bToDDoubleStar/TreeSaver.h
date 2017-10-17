@@ -59,18 +59,21 @@ public:
   void doBranching()
   {
     addFieldF("leptonP");
-    addFieldF("piPlusP");
-    addFieldF("piMinusP");
+    //    addFieldF("piPlusP");
+    //    addFieldF("piMinusP");
     addFieldF("dMesonP");
     addFieldF("deltaETag");
     addFieldF("mBTag");
     addFieldF("logProb");
     addFieldF("tagCorr");
-    addFieldF("D_DecayCorr");
+    //    addFieldF("D_DecayCorr");
+    //    addFieldF("sD_DecayCorr");
     addFieldF("B_DecayCorr");
-    addFieldF("PIDCorrection");
+    addFieldF("sB_DecayCorr");
+
     addFieldF("CrossSectionLumiCorrection");  
-    addFieldF("FFCorrection");
+    addFieldF("sCrossSectionLumiCorrection");
+    addFieldF("sRelTrackingCorrection");
 
     addFieldF("pi1Mom_mc");
     addFieldF("pi2Mom_mc");
@@ -78,6 +81,12 @@ public:
     addFieldF("pi2Theta_mc");
     addFieldF("pi1Phi_mc");
     addFieldF("pi2Phi_mc");
+    addFieldF("DDStarMass_mc");
+    ////--->
+    addFieldS("B_decayType");
+    ///needed for the lumi weight uncertainty (1.4%, but same for all experiments), add +1 for continuum
+    addFieldS("experiment");
+    addFieldI("numTracks");
 
     addFieldI("pi1Found");
     addFieldI("pi2Found");
@@ -112,8 +121,8 @@ public:
     addFieldI("sig_ResDStarPiLNu");
     addFieldI("sig_ResDStarPiPiLNu");
 
-    addFieldF("tagOverlapFractionCharged");
-    addFieldF("tagOverlapFractionPi0");
+    //    addFieldF("tagOverlapFractionCharged");
+    //    addFieldF("tagOverlapFractionPi0");
 
     addFieldI("sig_dStar_2S");
     addFieldI("sig_d_2S");
@@ -128,11 +137,11 @@ public:
     addFieldI("recBToDlNuPi");
     addFieldI("foundLepton");
     addFieldI("leptonId");
-    addFieldI("foundPiPlus");
-    addFieldI("foundPiMinus");
+    //    addFieldI("foundPiPlus");
+    //    addFieldI("foundPiMinus");
     addFieldI("foundDMeson");
-    addFieldI("DMeson_PID");
-    addFieldI("D_DaughterPID");
+    //    addFieldI("DMeson_PID");
+    //    addFieldI("D_DaughterPID");
     addFieldI("recDDoubleStar");
     addFieldI("tagId");
 
@@ -151,7 +160,9 @@ public:
     //    addArrayF("tagDeltaE");
     //    addArrayF("tagMass");
     addArrayI("dType");
+
     addArrayI("dDecay");
+
 
     addArrayF("mNu2");
     addArrayF("U");
@@ -165,20 +176,65 @@ public:
     addArrayF("pi2Mom");
 
 
-    addArrayF("leptonTheta");
-    addArrayF("pi1Theta");
-    addArrayF("pi2Theta");
+    //    addArrayF("leptonTheta");
+    //    addArrayF("pi1Theta");
+    //    addArrayF("pi2Theta");
 
 
-    addArrayF("leptonPhi");
-    addArrayF("pi1Phi");
-    addArrayF("pi2Phi");
+    //    addArrayF("leptonPhi");
+    //    addArrayF("pi1Phi");
+    //    addArrayF("pi2Phi");
 
     addArrayF("DDiff");
     addArrayF("DStarDiff");
 
     addArrayF("hypDMass1");
     addArrayF("hypDMass2");
+
+    //all individual corrections
+    addArrayF("KsCorrection");
+    addArrayF("sKsCorrection");
+    addArrayF("ChargedCorrection");
+    addArrayF("sChargedCorrection");
+    addArrayF("Pi0Correction");
+    addArrayF("sPi0Correction");
+
+
+    addArrayF("D_DecayCorr");
+    addArrayF("sD_DecayCorr");
+    addArrayF("FFDCorrection");
+    addArrayF("sFFDCorrection");
+    addArrayF("FFDdsCorrection");
+    addArrayF("sFFDdsCorrection");
+    //
+
+    ///--->
+    addArrayS("ChargedCorrThetaBin");
+    addArrayS("ChargedCorrMomBin");
+    addArrayS("ChargedCorrSVDBin");
+    addArrayS("ChargedCorrMisIdType");
+
+    addArrayS("KsCorrMomBin");
+    addArrayS("KsCorrThetaBin");
+    addArrayS("pi0MomBin");
+
+
+    //D FF (p, q2, type, star
+    //)D decay: type
+    //B decay type
+    addArrayS("D_pBinFF");
+    addArrayS("D_q2BinFF");
+    addArrayS("D_TypeFF");
+
+    addArrayS("Dds_wBinFF");
+    addArrayS("Dds_cosTBinFF");
+    addArrayS("Dds_TypeFF");
+
+    addArrayS("D_decType");
+    //ks mom,theta
+    //lepton: mom, theta, e/mu
+    //pi0 mom
+    //
 
   }
 
@@ -193,19 +249,19 @@ public:
     {
       int index=0;
       (*(float*)treeData[index++])=data->leptonP;
-      (*(float*)treeData[index++])=data->piPlusP;
-      (*(float*)treeData[index++])=data->piMinusP;
+      //      (*(float*)treeData[index++])=data->piPlusP;
+      //      (*(float*)treeData[index++])=data->piMinusP;
       (*(float*)treeData[index++])=data->dMesonP;
       (*(float*)treeData[index++])=data->deltaETag;
       (*(float*)treeData[index++])=data->mBTag;
       (*(float*)treeData[index++])=data->logProb;
       (*(float*)treeData[index++])=data->tagCorr;
-      (*(float*)treeData[index++])=data->D_DecayCorr;
       (*(float*)treeData[index++])=data->B_DecayCorr;
+      (*(float*)treeData[index++])=data->sB_DecayCorr;
       //      cout <<"saving d decay corr : "<< data->D_DecayCorr <<" b decay corr: "<< data->B_DecayCorr<<endl;
-      (*(float*)treeData[index++])=data->pidCorrection;
       (*(float*)treeData[index++])=data->CrossSectionLumiCorrection;
-      (*(float*)treeData[index++])=data->FFCorrection;
+      (*(float*)treeData[index++])=data->sCrossSectionLumiCorrection;
+      (*(float*)treeData[index++])=data->sRelTrackingCorrection;
 
       (*(float*)treeData[index++])=data->pi1Mom_mc;
       (*(float*)treeData[index++])=data->pi2Mom_mc;
@@ -213,13 +269,16 @@ public:
       (*(float*)treeData[index++])=data->pi2Theta_mc;
       (*(float*)treeData[index++])=data->pi1Phi_mc;
       (*(float*)treeData[index++])=data->pi2Phi_mc;
+      (*(float*)treeData[index++])=data->DDStarMass_mc;
 
+      (*(Short_t*)treeData[index++])=data->B_decType;
+      (*(Short_t*)treeData[index++])=data->experiment;
+      (*(int*)treeData[index++])=data->numTracks;
 
       //      cout <<"saving corrections: tag: " << data->tagCorr <<", D: "<< data->D_DecayCorr <<" B: " << data->B_DecayCorr<<", pid: "<< data->pidCorrection <<", cross section and lumi: "<< data->CrossSectionLumiCorrection<<endl;
       (*(int*)treeData[index++])=data->pi1Found;
       (*(int*)treeData[index++])=data->pi2Found;
       (*(int*)treeData[index++])=data->overlapEvent;
-
 
       (*(int*)treeData[index++])=data->found_2SD;
       (*(int*)treeData[index++])=data->found_2SD_Star;
@@ -251,7 +310,6 @@ public:
       (*(int*)treeData[index++])=data->sigDStarPiLNu;
       (*(int*)treeData[index++])=data->sigDStarPiPiLNu;
 
-
       (*(int*)treeData[index++])=data->sigResDLNu;
       (*(int*)treeData[index++])=data->sigResDPiLNu;
       (*(int*)treeData[index++])=data->sigResDPiPiLNu;
@@ -261,8 +319,8 @@ public:
       (*(int*)treeData[index++])=data->sigResDStarPiPiLNu;
 
 
-      (*(float*)treeData[index++])=data->tagOverlapFractionCharged;
-      (*(float*)treeData[index++])=data->tagOverlapFractionPi0;
+      //      (*(float*)treeData[index++])=data->tagOverlapFractionCharged;
+      //      (*(float*)treeData[index++])=data->tagOverlapFractionPi0;
 
 
       (*(int*)treeData[index++])=data->sig_dStar_2S;
@@ -277,11 +335,11 @@ public:
       (*(int*)treeData[index++])=data->recBToDlNuPi;
       (*(int*)treeData[index++])=data->foundLepton;
       (*(int*)treeData[index++])=data->leptonId;
-      (*(int*)treeData[index++])=data->foundPiPlus;
-      (*(int*)treeData[index++])=data->foundPiMinus;
+      //      (*(int*)treeData[index++])=data->foundPiPlus;
+      //      (*(int*)treeData[index++])=data->foundPiMinus;
       (*(int*)treeData[index++])=data->foundDMeson;
-      (*(int*)treeData[index++])=data->dPID;
-      (*(int*)treeData[index++])=data->daughterDPID;
+      //      (*(int*)treeData[index++])=data->dPID;
+      //      (*(int*)treeData[index++])=data->daughterDPID;
       (*(int*)treeData[index++])=data->recDDoubleStar;
       (*(int*)treeData[index++])=data->tagId;
 
@@ -333,7 +391,7 @@ public:
 
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
-	{
+	{  
 	  ((int*)treeData[index])[i]=data->dType[i];
 	}
       ++index;
@@ -411,46 +469,46 @@ public:
 
 
 
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->leptonTheta[i];
-	}
-      ++index;
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->pi1Theta[i];
-	}
-      ++index;
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->pi2Theta[i];
-	}
-      ++index;
-
-
-
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->leptonPhi[i];
-	}
-      ++index;
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->pi1Phi[i];
-	}
-      ++index;
-      (*(int*)treeData[index++])=data->size;
-      for(int i=0;i<data->size;i++)
-	{
-	  ((float*)treeData[index])[i]=data->pi2Phi[i];
-	}
-      ++index;
-
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->leptonTheta[i];
+//	}
+//      ++index;
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->pi1Theta[i];
+//	}
+//      ++index;
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->pi2Theta[i];
+//	}
+//      ++index;
+//
+//
+//
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->leptonPhi[i];
+//	}
+//      ++index;
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->pi1Phi[i];
+//	}
+//      ++index;
+//      (*(int*)treeData[index++])=data->size;
+//      for(int i=0;i<data->size;i++)
+//	{
+//	  ((float*)treeData[index])[i]=data->pi2Phi[i];
+//	}
+//      ++index;
+//
       (*(int*)treeData[index++])=data->size;
       for(int i=0;i<data->size;i++)
 	{
@@ -481,6 +539,197 @@ public:
 	}
       ++index;
 
+      (*(int*)treeData[index++])=data->numKsCorr;
+      for(int i=0;i<data->numKsCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->KsCorrection[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->numKsCorr;
+      for(int i=0;i<data->numKsCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sKsCorrection[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->ChargedCorrection[i];
+	}
+      ++index;
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sChargedCorrection[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numPi0Corr;
+      for(int i=0;i<data->numPi0Corr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->pi0Correction[i];
+	}
+      ++index;
+      (*(int*)treeData[index++])=data->numPi0Corr;
+      for(int i=0;i<data->numPi0Corr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sPi0Correction[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->numDDecCorr;
+      for(int i=0;i<data->numDDecCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->D_DecayCorr[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->numDDecCorr;
+      for(int i=0;i<data->numDDecCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sD_DecayCorr[i];
+	}
+      ++index;
+
+
+      (*(int*)treeData[index++])=data->numFFDCorr;
+      for(int i=0;i<data->numFFDCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->FFDCorrection[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDCorr;
+      for(int i=0;i<data->numFFDCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sFFDCorrection[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDdsCorr;
+      for(int i=0;i<data->numFFDdsCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->FFDdsCorrection[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDdsCorr;
+      for(int i=0;i<data->numFFDdsCorr;i++)
+	{
+	  ((float*)treeData[index])[i]=data->sFFDdsCorrection[i];
+	}
+      ++index;
+
+
+
+
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->ChargedCorrThetaBin[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->ChargedCorrMomBin[i];
+	}
+      ++index;
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->ChargedCorrSVDBin[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numChargedCorr;
+      for(int i=0;i<data->numChargedCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->ChargedCorrMisIdType[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numKsCorr;
+      for(int i=0;i<data->numKsCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->KsCorrMomBin[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numKsCorr;
+      for(int i=0;i<data->numKsCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->KsCorrThetaBin[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numPi0Corr;
+      for(int i=0;i<data->numPi0Corr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->pi0MomBin[i];
+	}
+      ++index;
+
+
+
+
+      (*(int*)treeData[index++])=data->numFFDCorr;
+      for(int i=0;i<data->numFFDCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->D_pBinFF[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDCorr;
+      for(int i=0;i<data->numFFDCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->D_q2BinFF[i];
+	}
+      ++index;
+      (*(int*)treeData[index++])=data->numFFDCorr;
+      for(int i=0;i<data->numFFDCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->D_TypeBinFF[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDdsCorr;
+      for(int i=0;i<data->numFFDdsCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->Dds_wBinFF[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numFFDdsCorr;
+      for(int i=0;i<data->numFFDdsCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->Dds_cosTBinFF[i];
+	}
+      ++index;
+      //      cout <<"want to access index: "<< index <<endl;
+      //      cout <<" numDDs: "<< data->numFFDdsCorr<<endl;
+      (*(int*)treeData[index++])=data->numFFDdsCorr;
+
+      for(int i=0;i<data->numFFDdsCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->Dds_TypeBinFF[i];
+	}
+      ++index;
+
+      (*(int*)treeData[index++])=data->numDDecCorr;
+      for(int i=0;i<data->numDDecCorr;i++)
+	{
+	  ((Short_t*)treeData[index])[i]=data->D_decType[i];
+	}
+      ++index;
+
+      //      cout <<"filling tree " <<endl;
       pDataTree->Fill();
 
     }
@@ -492,6 +741,15 @@ public:
 
   //get all h-pairs in mc, w/o det acceptance
 
+ //std: float datatype
+  void addFieldS(const char* fieldname)
+  {
+    //construct the memory location from which the tree should read the new data field
+    Short_t* memLoc=new Short_t;
+    treeData.push_back(memLoc);
+    pDataTree->Branch(fieldname, memLoc, (fieldname+string("/S")).c_str());
+    fieldNamesS.push_back(fieldname);
+  };
 
 
 
@@ -514,6 +772,8 @@ public:
     fieldNamesI.push_back(fieldname);
   };
 
+
+
   void addArrayI(const char* fieldname)
   {
     //standard lenth, shouldn't be more than that
@@ -526,6 +786,7 @@ public:
     pDataTree->Branch(fieldname,memLoc,(fieldname+string("[")+counterName+string("]/I")).c_str());
   };
 
+
   void addArrayF(const char* fieldname)
   {
     float* memLoc=new float[1200];
@@ -535,6 +796,18 @@ public:
     string counterName=string(fieldname)+string("Counter");
     pDataTree->Branch(counterName.c_str(),memLocCounter,(counterName+string("/I")).c_str());
     pDataTree->Branch(fieldname,memLoc,(fieldname+string("[")+counterName+string("]/F")).c_str());
+  };
+
+
+  void addArrayS(const char* fieldname)
+  {
+    float* memLoc=new float[1200];
+    int* memLocCounter=new int;
+    treeData.push_back(memLocCounter);
+    treeData.push_back(memLoc);
+    string counterName=string(fieldname)+string("Counter");
+    pDataTree->Branch(counterName.c_str(),memLocCounter,(counterName+string("/I")).c_str());
+    pDataTree->Branch(fieldname,memLoc,(fieldname+string("[")+counterName+string("]/S")).c_str());
   };
 
 
@@ -614,6 +887,7 @@ private:
   static vector<void*> treeData;
   static vector<string> fieldNamesI;
   static vector<string> fieldNamesF;
+  static vector<string> fieldNamesS;
 
 };
 #if defined(BELLE_NAMESPACE)

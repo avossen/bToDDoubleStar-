@@ -48,9 +48,9 @@ public:
   int goodHadronB() const;
 
   //should get the tree data info
-  float getBRCorrection();
+  pair<float, float> getBRCorrection(int& decType);
   float calcBRCorrection();
-  float getFFCorrection();
+  pair<float,float> getFFCorrection();
 
   // begin_run function
   void begin_run ( BelleEvent*, int* );
@@ -98,7 +98,7 @@ public:
   bool recursivePrint(const Gen_hepevt gen_it, string s);
   bool isAnyD(int lund);
   bool getDDecayProducts(const Gen_hepevt, int& Kp, int& Km, int& Ks, int& Pip, int& Pim, int& Pi0, int& other);
-  void computeD_BR_CorrectionFactor(double& corrFact,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other);
+  void computeD_BR_CorrectionFactor(double& corrFact,double& corrUncert,int Kp, int Km, int Ks, int Pip,int Pim, int Pi0,int other, int& decType);
 
   static float getPhi(const Hep3Vector& axis, const Hep3Vector& input)
     {
@@ -119,6 +119,7 @@ public:
   Ptype cKPlus;
   Ptype cKNeg;
  protected:
+  float mcMassDDStar;
   float cosTheta;
   float w;
   float q2;
@@ -226,6 +227,8 @@ public:
     vector<Particle*> chargedPiCandidates;
     vector<Particle*> chargedKCandidates;
     vector<Particle*> pi0Candidates;
+    //added Sept 2017 to check if D* ->D \gamma is a viable channel
+    vector<Particle*> photonCandidates;
     vector<Particle*> KsCandidates;
     vector<Particle*> leptonCandidates;
     vector<Particle*> otherChargedTracks;
@@ -267,6 +270,7 @@ private:
     float dDecayFactorsData[25];
     float dDecayFactorsDataErrors[25];
 
+    float sRelD_BR_CorrFactor;
     float  D_BR_CorrectionFactor;
     float B_BR_CorrectionFactor;
 
