@@ -16,15 +16,19 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
   //use first 4 trees (the last one is data)
   int treeCount=4;
   char corrBuffer[2000];
+  char noCorrBuffer[200];
   char buffer[3000];
   bool tmpFFCorrection=withFFCorrection;
   if(dataTree)
     {
 	treeCount=1;
 	//not all my data trees have this field (which is  ==1 anyways for data)
-	withFFCorrection=false;
+	//	withFFCorrection=false;
+	//-->for 'real data' (so not MC test), don't do any corrections (they are all 1);
     }
   addCorrections(corrBuffer);
+  sprintf(noCorrBuffer,"");
+
   withFFCorrection=tmpFFCorrection;
 
   cout <<"tree count: " << treeCount <<endl;
@@ -76,15 +80,15 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 #else
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s " P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s " P0STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		    sprintf(buffer,"%s " P1STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		  sprintf(buffer,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
+		  sprintf(buffer,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && abs(leptonId)==%d && %s)  ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,leptonId,channelSelectionData);
 		  }
 #endif
 	      }
@@ -130,15 +134,15 @@ void getData(TH1F* &data, bool dataTree, TTree** trees, int channel, int numPion
 #else
 		if(numPions==0)
 		  {
-		    sprintf(buffer,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==1)
 		  {
-		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		    sprintf(buffer,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 		if(numPions==2)
 		  {
-		  sprintf(buffer,"%s (" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",corrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
+		  sprintf(buffer,"%s (" P2STRING "  && bestBCharge==((-1)*systemCharge) && %s) ",noCorrBuffer,upperCut[channelIdx],lowerCut[channelIdx],numPions,channelSelectionData);
 		  }
 #endif
 	}

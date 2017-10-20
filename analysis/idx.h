@@ -5,12 +5,13 @@
 
 //#include "doAnalysisCombined.h"
 ///////--> use this, but for partial box might need less...int numBins[]={70,70,70,70,70}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
-#ifdef PARTIAL_BOX
+
 //int numBins[]={40,20,30,20,20}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma..
 
+
+
 extern int numBins[5];
-#else
-extern int numBins[5];
+extern TColor* glColorTable[30];
 //int numBins[]={140,140,70,140,70}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
 
 
@@ -26,7 +27,7 @@ extern int numBins[5];
 
 
 //int numBins[]={20,8,8,8,8}; //--> this together with lower -0.5, upper 2.0 leads to a mean exactly within one sigma...
-#endif
+
 extern double lowerCut[5];
 extern double upperCut[5];
 extern void getChannelString(int channel, char* buffer);
@@ -93,10 +94,10 @@ extern bool withFFCorrection;
 
 
 using namespace std;
-void addCorrections(char* buffer);
+//void addCorrections(char* buffer);
 //void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dataAndMC, int numPions, bool wrongChannel=false);
-void getFeedDown(char* feedDownSelection, int channel, bool dataAndMC, int numPions);
-void insertSignalMCWeighting(char* buffer,  int fileIndex);
+//void getFeedDown(char* feedDownSelection, int channel, bool dataAndMC, int numPions);
+//void insertSignalMCWeighting(char* buffer,  int fileIndex);
 
 //get the template and apply possible mergers if necessary
 //in principle there is a twist for the combined (so D and D*) channels. But since the D* is pretty clean, we probably get away w/o combination there 

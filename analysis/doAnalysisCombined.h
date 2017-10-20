@@ -79,7 +79,7 @@ float gl_lastCrossFeedFraction;
 
 using namespace std;
 
-char channelStringGlobal[300];
+char channelStringGlobal[400];
 int pCount;
 
 TH1D** sigSignificance;
@@ -91,7 +91,7 @@ void getChannelString(int channel, char* buffer);
 void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dataAndMC, int numPions, bool wrongChannel=false);
 void getDataFromMC(TH1F* &data, int channel, int numPions, int leptonId, TH1F** summedComponents, int numComponents);
 void getTemplates(TH1F** summedComponents_in, TH1F** &templates, char** templateLegendNames, char** allLegendNames, int numComponents, int& numMergers, int numPions,int oneIdxxo,bool combineDPiPi=true);
-void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId, int channel, bool dataTree, bool addNoise, TH1D* pulls,TH1D* pullsFeedDown);
+void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numComponents,int numPions,int leptonId, int channel, bool dataTree, bool addNoise, TH1D* pulls,TH1D* pullsFeedDown,float& BRRatio, float& relUncertaintyBRRatio ,float& BRRatioCombChannel, float& relUncertaintyBRRatioCombChannel, TH1F* allPulls);
 
 void combineChannels(TH1F** summedComponentsD_in,  TH1F** summedComponentsDStar_in, TH1F** summedComponents_out, int numComponents, int DChannelIdx, int numPions);
 TRandom3* rnd;
@@ -116,7 +116,7 @@ void performFractionFitStabilityTest(TH1F** templatesOrg, TH1F* dataOrg, int num
 void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegendNames,int numPions);
 void addPoissonNoise(TH1F* h);
 
-TColor* glColorTable[20];
+
 
 
 //just to split some stuff off
@@ -174,7 +174,7 @@ void addCorrections(char* buffer)
     }
   if(withDCorrection)
     {
-      str <<"D_DecayCorr*";
+      str <<"combD_DecayCorr*";
     }
   if(withBCorrection)
     {
@@ -605,9 +605,6 @@ void getChargeAndStarSelection(char* chargeAndStarSelection,int channel,bool dat
     }
   
 }
-
-
-
 
 void loadComponents(TFile* file,TH1F** components, TH1F** summedComponents, int numPions,int leptonId, int channel,  int numComponents, int numFiles)
 {
@@ -1356,6 +1353,8 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   char histoName[200];
   char drawCommand[200];
   char buffer[2000];
+  //no corrections
+  char bufferData[2000];
   char tmpBuffer[2000];
 
   char channelString[500];
@@ -1374,6 +1373,8 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   withFFCorrection=tmpFFCorrection;
 
   sprintf(buffer,"%s %s",huschleMC_lumi_corr,tmpBuffer);
+  cout <<"buffer: "<< buffer <<endl;
+  sprintf(bufferData,"1*");
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
@@ -1425,11 +1426,11 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
 	sprintf(upperSBSelection,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
 
       if(numPions==0)
-	sprintf(upperSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",bufferData, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(upperSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",bufferData, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-	sprintf(upperSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
+	sprintf(upperSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",bufferData, upperSidebandTop,upperSidebandBottom,numPions, channelSelectionData);
         
       if(numPions==0)
 	sprintf(lowerSBSelection,"%s tagCorr*" P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
@@ -1439,11 +1440,11 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
       sprintf(lowerSBSelection,"%s tagCorr*(" P2STRING " && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
 
       if(numPions==0)
-	sprintf(lowerSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s " P0STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",bufferData, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==1)
-	sprintf(lowerSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s " P1STRING "  && bestBCharge==((-1)*systemCharge)  && %s) ",bufferData, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
       if(numPions==2)
-	sprintf(lowerSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && %s ) ",buffer, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
+	sprintf(lowerSBSelectionData,"%s (" P2STRING " && bestBCharge==((-1)*systemCharge) && %s ) ",bufferData, lowerSidebandTop,lowerSidebandBottom,numPions, channelSelectionData);
 
       //sprintf(buffer,"D_DecayCorr*B_DecayCorr*PIDCorrection*tagCorr*CrossSectionLumiCorrection*(mNu2<1.0 && mNu2>-1.0 && numRecPions==%d && mBTag> 5.27 && deltaETag>-0.05 && deltaETag<0.05 && logProb > -3 && mDnPi < 3.0 )  ",numPions);
     }
@@ -1468,6 +1469,7 @@ void doSidebandComparison(TTree* mcTree, TTree* dataTree,int leptonId, int numPi
   TH1D* histo_USData=new TH1D(histoName,histoName,numBinsSBTop,upperSidebandBottom,upperSidebandTop);
   sprintf(drawCommand,"mNu2 >> %s",histoName);
   cout <<"about to get data with string: "<< drawCommand <<endl;
+  cout <<" and selection " << upperSBSelectionData <<endl;
   counts=dataTree->Draw(drawCommand,(char*)upperSBSelectionData);
   cout <<"got " << counts <<" counts from data upperSB selected " <<endl;
   *upperSidebandData=(TH1F*)gDirectory->Get(histoName);
@@ -1494,6 +1496,7 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId,  int num
   char histoName[200];
   char drawCommand[2000];
   char buffer[2000];
+  char bufferData[2000];
 
   char channelString[500];
   char channelSelectionData[1000];
@@ -1502,6 +1505,7 @@ void doWrongSignComparison(TTree* mcTree,TTree* dataTree, int leptonId,  int num
   getChargeAndStarSelection(channelSelectionData,channel,false,numPions,false);
 
   addCorrections(buffer);
+  sprintf(bufferData,"1*");
   //select sidebands from all (need to redo all components because we select a different range
   if(leptonId!=0)
     {
@@ -2705,6 +2709,29 @@ void fillTemplates(TH1F** templates,TH1F** summedComponents,char* templateLegend
 
 
 };
+
+//get pulls from two histos
+TH1F* getCompPulls(TH1F* h1, TH1F* h2)
+{
+  char buffer[200];
+  sprintf(buffer, "pullsBetween_%s_and_%s",h1->GetName(),h2->GetName());
+  TH1F* pP=new TH1F(buffer,buffer,60,-3,3);
+  int N=h1->GetNbinsX();  
+  int N2=h2->GetNbinsX();
+  if(N!=N2)
+    {
+      cout <<"get comp pulls, histos not the same size!" << endl;
+      exit(0);
+    }
+  for(int i=1;i<=N;i++)
+    {
+      pP->Fill((h1->GetBinContent(i)-h2->GetBinContent(i))/(sqrt(h1->GetBinError(i)*h1->GetBinError(i)+h2->GetBinError(i)*h2->GetBinError(i))));
+      cout <<"filling " << h1->GetName() <<", " <<h2->GetName() <<" with pull" << (h1->GetBinContent(i)-h2->GetBinContent(i))/(sqrt(h1->GetBinError(i)*h1->GetBinError(i)+h2->GetBinError(i)*h2->GetBinError(i)))<<endl;
+    }
+  pP->GetXaxis()->SetTitle("pulls");
+  return pP;
+
+}
 
 float getSBChi2(TH1F* data, TH1F* mc)
 {
