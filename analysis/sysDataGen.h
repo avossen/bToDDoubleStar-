@@ -39,7 +39,7 @@ class sysDataGen
 
   void readTrees();
   //get the templates for a specific channel. At this point the channel selection cuts are made
-  TH1F** getTemplates(int channelIdx, int leptonId, char* channelString, TH1F** components, bool doSysStudies=false);
+  TH1F** getTemplates(int channelIdx, int leptonId, char* channelString, TH1F** components, bool doSysStudies=false, int sysIndex=-1);
 
 
   //store data in mNu2,weight and weight uncertainty tuples

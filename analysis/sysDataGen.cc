@@ -65,48 +65,95 @@ sysDataGen::sysDataGen(TTree** trees)
 }
 
 
-TH1F** sysDataGen::getTemplates(int channelIdx, int leptonId, char* channelString, TH1F** components, bool doSysStudies)
+TH1F** sysDataGen::getTemplates(int channelIdx, int leptonId, char* channelString, TH1F** components, bool doSysStudies, int sysIndex)
 {
   //generate the gaussian weights
+  int indexCount=0;
   if(doSysStudies)
     {
       for(int i=0;i<6480;i++)
 	{
-	  ChargedWeights[i]=rnd.Gaus(0,1.0);
+	  //hopefully the order of the loop and the if statment gets re-ordered in the compiler optimization step....
+	  if(sysIndex==-1 || indexCount==0)
+	    {
+	      ChargedWeights[i]=rnd.Gaus(0,1.0);
+	    }
+	  else
+	    {
+	      ChargedWeights[i]=0.0;
+	    }
 	}
+      indexCount++;
       for(int i=0;i<12;i++)
 	{
-	  KsWeights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    {
+	      KsWeights[i]=rnd.Gaus(0,1.0);
+	    }
+	  else{
+	    KsWeights[i]=0.0;
+	  }
+
 	}
+      indexCount++;
       for(int i=0;i<24;i++)
 	{
-	  pi0Weights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    pi0Weights[i]=rnd.Gaus(0,1.0);
+	  else
+	    pi0Weights[i]=0.0;
 	}
+      indexCount++;
       for(int i=0;i<576;i++)
 	{
-	  D_FFWeights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    D_FFWeights[i]=rnd.Gaus(0,1.0);
+	  else
+	    D_FFWeights[i]=0.0;
 	}
+      indexCount++;
       for(int i=0;i<680;i++)
 	{
-	  Dds_FFWeights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    Dds_FFWeights[i]=rnd.Gaus(0,1.0);
+	  else
+	    Dds_FFWeights[i]=0.0;
+
 	}
+      indexCount++;
       for(int i=0;i<26;i++)
 	{
-	  D_decTypeWeights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    D_decTypeWeights[i]=rnd.Gaus(0,1.0);
+	  else
+	    D_decTypeWeights[i]=0.0;
 	}
+      indexCount++;
       for(int i=0;i<12;i++)
 	{
-	  B_decWeights[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    B_decWeights[i]=rnd.Gaus(0,1.0);
+	  else
+	    B_decWeights[i]=0.0;
+
 	}
+      indexCount++;
       for(int i=0;i<100;i++)
 	{
-	  lumiWeight[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    lumiWeight[i]=rnd.Gaus(0,1.0);
+	  else
+	    lumiWeight[i]=0.0;
 	}
+      indexCount++;
       for(int i=0;i<4;i++)
 	{
-	  tagIdWeight[i]=rnd.Gaus(0,1.0);
+	  if(sysIndex==-1 || indexCount==0)
+	    tagIdWeight[i]=rnd.Gaus(0,1.0);
+	  else
+	    tagIdWeight[i]=0.0;
 	}
-
+      
       const float sigmaDelta=0.0035;
       const float effMC=0.8;
       const float sigmaW=sigmaDelta/effMC;

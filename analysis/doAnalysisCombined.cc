@@ -20,8 +20,8 @@
 //#define MC_TEST
 //#define GENERATE_SINGLE_STREAM
 //open box by 15%
-#define PARTIAL_BOX
-//#define  USE_DATA
+//#define PARTIAL_BOX
+#define  USE_DATA
 
 
 //of course need to set doSBComb as well...
@@ -58,7 +58,7 @@ int main(int argc, char** argv)
 {
   //  bool USE_TREES=false;
   bool USE_TREES=true;
-  bool doSysStudy=false;
+  bool doSysStudy=true;
   //initialize external vars
 #ifdef PARTIAL_BOX
     //={40,20,30,20,20};
@@ -581,53 +581,106 @@ int main(int argc, char** argv)
 	  //regenerate templates based on the uncertainties on the weights
 	  if(doSysStudy)
 	    {
-	      for(int l=0;l<10;l++)
+	      TCanvas cSys;
+	      float trueBR=0.0;
+	      float trueBRFeedDown=0.0;
+
+	      //I think we have 9 separate sources of systematic uncertainty
+	      for(int sysIndex=-1;sysIndex<9;sysIndex++)
 		{
-		  //only needed for iC >=4 but let's just set it...
-		  int DChannelIdx=1;
+		  char sysName[200];
+		  char sysNameFeedDown[200];
+		  getChannelString(glChannelIdx-1,channelBuffer);
+		  sprintf(sysName,"sysStudy_sysIndex_%d_channel_%s",sysIndex,channelBuffer);
+		  //these are the total differences in the brRatios. Should be small
+		  TH1D* hSys=new TH1D(sysName,sysName,50,-0.1,0.1);
+		  sprintf(sysNameFeedDown,"sysPullFeedDown_sysIndex_%d_channel_%s",sysIndex,channelBuffer);
+		  TH1D* hSysFeedDown=new TH1D(sysNameFeedDown,sysNameFeedDown,50,-0.2,0.2);
 
-		  if(glChannelIdx==6)
+		  for(int l=0;l<10;l++)
 		    {
-		      DChannelIdx=3;
-		    }
-		  int DStarChannelIdx=DChannelIdx+1;
-		  if(iC<4)
-		    {
-		      TH1F** ret=sys.getTemplates(glChannelIdx,leptonId,channelBuffer,components);
-		      for(int iL=0;iL<gl_numComponents;iL++)
+		      //only needed for iC >=4 but let's just set it...
+		      int DChannelIdx=1;
+		      if(glChannelIdx==6)
 			{
-			  delete summedComponents[glChannelIdx][i][pionIndex][iL];
-			  summedComponents[glChannelIdx][i][pionIndex][iL]=(TH1F*)ret[iL]->Clone();
-			  delete ret[iL];
+			  DChannelIdx=3;
 			}
-		    }
-		  else
-		    {
-		      for(int iL=0;iL<gl_numComponents;iL++)
+		      int DStarChannelIdx=DChannelIdx+1;
+		      if(iC<4)
 			{
-			  //need to regenerate D and D* channel
-			  delete summedComponents[DChannelIdx][i][pionIndex][iL];
-			  TH1F** ret=sys.getTemplates(DChannelIdx,leptonId,channelBuffer,components);
-			  summedComponents[DChannelIdx][i][pionIndex][iL]=(TH1F*)ret[iL]->Clone();
-			  delete ret[iL];
-			  delete summedComponents[DStarChannelIdx][i][pionIndex][iL];
-			  TH1F** ret2=sys.getTemplates(DStarChannelIdx,leptonId,channelBuffer,components);
-			  summedComponents[DStarChannelIdx][i][pionIndex][iL]=(TH1F*)ret2[iL]->Clone();
-			  delete ret2[iL];
-			  combineChannels(summedComponents[DChannelIdx][i][pionIndex],summedComponents[DStarChannelIdx][i][pionIndex],summedComponents[glChannelIdx][i][pionIndex],gl_numComponents,DChannelIdx, numPions);
+			  TH1F** ret=0;
+			  if(l==0)//first iteration, no shift to get 'true' value
+			    ret==sys.getTemplates(glChannelIdx,leptonId,channelBuffer,components);
+			  else
+			    ret==sys.getTemplates(glChannelIdx,leptonId,channelBuffer,components,true,sysIndex);
+			  for(int iL=0;iL<gl_numComponents;iL++)
+			    {
+			      delete summedComponents[glChannelIdx][i][pionIndex][iL];
+			      summedComponents[glChannelIdx][i][pionIndex][iL]=(TH1F*)ret[iL]->Clone();
+			      delete ret[iL];
+			    }
+			}
+		      else
+			{
+			  for(int iL=0;iL<gl_numComponents;iL++)
+			    {
+			      //need to regenerate D and D* channel
+			      delete summedComponents[DChannelIdx][i][pionIndex][iL];
+			      TH1F** ret=0;
+			      if(0==l)
+				{
+				  ret=sys.getTemplates(DChannelIdx,leptonId,channelBuffer,components);
+				}
+			      else
+				{
+				  ret=sys.getTemplates(DChannelIdx,leptonId,channelBuffer,components,true,sysIndex);
+				}
+			      summedComponents[DChannelIdx][i][pionIndex][iL]=(TH1F*)ret[iL]->Clone();
+			      delete ret[iL];
+			      delete summedComponents[DStarChannelIdx][i][pionIndex][iL];
+			      TH1F** ret2=sys.getTemplates(DStarChannelIdx,leptonId,channelBuffer,components);
+			      summedComponents[DStarChannelIdx][i][pionIndex][iL]=(TH1F*)ret2[iL]->Clone();
+			      delete ret2[iL];
+			      combineChannels(summedComponents[DChannelIdx][i][pionIndex],summedComponents[DStarChannelIdx][i][pionIndex],summedComponents[glChannelIdx][i][pionIndex],gl_numComponents,DChannelIdx, numPions);
+			    }
+			}
+		      float BRRatio=0.0;
+		      float relUncertBRRatio=0.0;
+		      float BRRatioCombinedChannel=0.0;
+		      float relUncertBRRatioCombinedChannel=0.0;
+		      fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls,pullsFeedDown,BRRatio,relUncertBRRatio,BRRatioCombinedChannel, relUncertBRRatioCombinedChannel, allPulls);
+		      if(l==0)
+			{
+			  trueBR=BRRatio;
+			  trueBRFeedDown=BRRatioCombinedChannel;
+			}
+		      else
+			{
+			  hSys->Fill(trueBR-BRRatio);
+			  if(iC>=4)
+			    hSysFeedDown->Fill(trueBRFeedDown-BRRatioCombinedChannel);
 			}
 
+		    }//what is l? Iterations? 
+		  //do something with these numbers
+		  //--->
 
+		  hSys->Fit("gaus");
+		  hSys->Draw();
+		  sprintf(buffer,"%s.png",sysName);
+		  cSys.SaveAs(buffer);
+		  if(iC>=4)
+		    {
+		      hSysFeedDown->Fit("gaus");
+		      sprintf(buffer,"%s,png",sysNameFeedDown);
+		      hSysFeedDown->Draw();
+		      cSys.SaveAs(buffer);
 		    }
-
-		  float BRRatio=0.0;
-		  float relUncertBRRatio=0.0;
-		  float BRRatioCombinedChannel=0.0;
-		  float relUncertBRRatioCombinedChannel=0.0;
-		  fitFractions(data[glChannelIdx],trees,summedComponents[glChannelIdx][i][pionIndex],numComponents, numPions,leptonId,iC,dataTree,addNoise,pulls,pullsFeedDown,BRRatio,relUncertBRRatio,BRRatioCombinedChannel, relUncertBRRatioCombinedChannel, allPulls);
 
 		}
-	    }
+	      ///save histos with sys pulls
+	      //////
+	    }///end doSysStudy
 	
 
 
@@ -1451,6 +1504,14 @@ void fitFractions(TH1F* data, TTree** trees, TH1F** summedComponents, int numCom
 		cout <<"using index: "<< signalIdxCrossFeed <<endl;
 		cout <<"BR ratio to DDStar MC for channel " << channelString << " is : "<< mcCompCrossFeed->Integral()/mcSignalIntegralCrossFeed<<endl;
 		cout <<"fit val: "<< allFitVals[signalIdxCrossFeed] << " uncert: "<< allFitErrs[signalIdxCrossFeed] << "  relative uncert  " << allFitErrs[signalIdxCrossFeed]/allFitVals[signalIdxCrossFeed] <<endl; 
+	      }
+
+	    BRRatio=mcComp->Integral()/mcSignalIntegral;
+	    relUncertaintyBRRatio=allFitErrs[signalIdx]/allFitVals[signalIdx];
+	    if(channel>3)
+	      {
+		BRRatioCombChannel=mcCompCrossFeed->Integral()/mcSignalIntegralCrossFeed;
+		relUncertaintyBRRatioCombChannel=allFitErrs[signalIdxCrossFeed]/allFitVals[signalIdxCrossFeed];
 	      }
 	    
 	    predComponents->Add(mcComp);

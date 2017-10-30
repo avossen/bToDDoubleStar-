@@ -1980,11 +1980,12 @@ float getFitSignal_RooFit( TH1F* data,TH1F** templates,int numTemplates,    TH1F
 	  {
 	    //  int fixThresholdCounts=2000;
 #ifndef PARTIAL_BOX 
-	    if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+	    	    if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+		      //	if(integralOfComponents[i]>0|| i==signalIndex)
 #else
 	      //the low counts in the partial_box case doesn't allow to differentiate between feed-down and other bb
-	      if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
-		//	if(integralOfComponents[i]>0|| i==signalIndex)
+	      	      if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
+	      //			if(integralOfComponents[i]>0|| i==signalIndex)
 		//	if((integralOfComponents[i]>fixThresholdCounts|| i==signalIndex) )//  && !(i==otherBBIndex1 || i==otherBBIndex2) && !(i==continuumIndex1|| i==continuumIndex2))
 #endif 
 		{
